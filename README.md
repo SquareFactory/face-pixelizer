@@ -1,5 +1,15 @@
-# Repository template
+# Face-pixelizer
 
-This repository serves as a template for all other Alpine Intuition repo's.
+## Install
 
-#### Have you setup up the linter locally as explained in the [doc](https://github.com/alpineintuition/alpine-doc/blob/master/DEV_OPS.md#linting)?! If not, DO IT!
+```
+conda create -n face-pixelizer python=3.8
+conda activate face-pixelizer
+pip install -r requirements.txt
+```
+
+## Example:
+
+```
+python face_pixelizer.py --image_path imgs/example_01.jpg
+```
