@@ -1,7 +1,9 @@
 import argparse
 import copy
 import os
+import time
 from typing import List
+import warnings
 
 import albumentations as A
 import cv2
@@ -12,6 +14,9 @@ import torchvision
 
 from retinaface import retinaface
 from utils import decode_boxes, get_prior_box, pixelize
+
+
+warnings.simplefilter("ignore")
 
 
 class FacePixelizer:
@@ -134,7 +139,9 @@ if __name__ == "__main__":
 
     # Inference
 
+    start = time.time()
     pred = face_pixelizer([img])[0]
+    print(f"inference done in {time.time() - start:0.3f} secs.")
 
     # Plot images
 
@@ -143,4 +150,5 @@ if __name__ == "__main__":
         axe.imshow(im[..., ::-1])
         axe.set_title(title)
         axe.axis("off")
+    plt.tight_layout()
     plt.show()
