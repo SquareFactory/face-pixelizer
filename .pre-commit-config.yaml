@@ -3,15 +3,15 @@ repos:
     rev: 19.10b0
     hooks:
       - id: black
-        language_version: python3.6
+        language_version: python3.8
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v2.0.0
     hooks:
       - id: flake8
         args: [
-            --ignore, "E203,E501,W291,W503", 
-            --max-line-length, "89", 
+            --ignore, "E203,E501,W291,W503",
+            --max-line-length, "89",
             --max-complexity, "18"
         ]
 
@@ -19,6 +19,6 @@ repos:
     rev: 1.6.2
     hooks:
     - id: bandit
-      args: 
+      args:
       - -s
       - B101,B108,B322,B404,B603
