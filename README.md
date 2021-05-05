@@ -8,8 +8,10 @@ conda activate face-pixelizer
 pip install -r requirements.txt
 ```
 
-## Example:
+## Example
 
 ```
 python face_pixelizer.py --image_path imgs/example_01.jpg
 ```
+
+![example](imgs/plot.jpg)
