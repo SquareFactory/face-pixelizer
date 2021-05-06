@@ -5,6 +5,7 @@ RUN pip install -r requirements.txt
 
 ARG FACE_PIXELIZER=/opt/face_pixelizer
 RUN mkdir ${FACE_PIXELIZER}
+COPY face_pixelizer.py ${FACE_PIXELIZER}
 COPY retinaface.py ${FACE_PIXELIZER}
 COPY utils.py ${FACE_PIXELIZER}
 ENV PYTHONPATH="${FACE_PIXELIZER}:${PYTHONPATH}"
