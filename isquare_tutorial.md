@@ -115,7 +115,25 @@ We strongly recommend that you implement batched inference for your model, since
 And that's all you need to get going from the code point of view. Let's proceed, setup our environment and deploy our model!
 
 ### Step 1.2: Set up your environment
-Most deep learning models are not coded from scratch and depend on external libraries (e.g. python, tensorflow). With isquare.ai, all requirements are handled by a Dockerfile, which is basically a set of instructions which sets up an environment. If you’re new to Docker, check the [documentation](https://docs.docker.com/engine/reference/builder/). Our face pixelizer was build with pytorch and has following python dependencies:
+Most deep learning models are not coded from scratch and depend on external libraries (e.g. python, tensorflow). With isquare.ai, all requirements are handled by a Dockerfile, which is basically a set of instructions which sets up an environment. If you’re new to Docker, check the [documentation](https://docs.docker.com/engine/reference/builder/). We need to create a file containing Docker instructions (usually called Dockerfile):
+```
+FROM alpineintuition/archipel-base-cpu:latest
+
+COPY requirements.txt requirements.txt
+RUN pip install -r requirements.txt
+
+ARG FACE_PIXELIZER=/opt/face_pixelizer
+RUN mkdir ${FACE_PIXELIZER}
+COPY face_pixelizer.py ${FACE_PIXELIZER}
+COPY retinaface.py ${FACE_PIXELIZER}
+COPY utils.py ${FACE_PIXELIZER}
+ENV PYTHONPATH="${FACE_PIXELIZER}:${PYTHONPATH}"
+COPY "retinaface_mobilenet_0.25.pth" "${FACE_PIXELIZER}/retinaface_mobilenet_0.25.pth"
+
+```
+**Let's go through it step by step:**
+
+Our face pixelizer was build with pytorch and has following python dependencies:
 ```
 albumentations==0.5.1
 matplotlib==3.4.1
