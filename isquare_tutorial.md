@@ -2,7 +2,7 @@
 *In this tutorial, we will cover all steps to deploy a model written in python to isquare.ai. This tutorial’s duration is about 30mins, and is addressed at ML developers, software engineers or project managers who want to put their machine learning models into production in a few clicks.*
 
 ## Use case: Face Pixelizer
-France recently wanted to pass a law, named sécurité globale. It could become illegal to publish pictures or videos showing faces of policeman. We put ourselves in the case of a person who wants to make an app, permitting the filming of policeman, but with an AI model blurring the faces. Since these laws come with a rise in police violence, it is super important to continue filming the interventions of law officiers. Therefore, we developed a machine learning model which automatically blurs faces in any image, and is capable of doing so in real time. In this tutorial, we will show how to deploy this model efficiently with isquare.ai. We trained a simple face detection algorithm (retinaface) and changed it to blur the faces. When testing the model on a picture of the street parade, we see the algorithm in action. 
+France recently passed a  new law, named "sécurité globale". It makes it illegal to publish pictures or videos showing policemen without anonymizing. We put ourselves in the case of a person who wants to make an app, permitting to stream and report events, including ones with policemen presence, but with an AI model blurring the faces directly. While understandable for their family and own security this law also makes it tricky to live report political events. Therefore, we developed a machine learning model which automatically blurs faces in any image, and is capable of doing so in real time. In this tutorial, we will show how to deploy this model efficiently with isquare.ai. We trained a simple face detection algorithm (retinaface) and changed it to blur the faces. When testing the model on a picture of the street parade, we see the algorithm in action. 
 ![example](imgs/plot.jpg)
 
 We won't go into the details of the code (which can be found [here](face_pixelizer.py)), but this is appliable to any model that is waiting to be deployed.
@@ -11,7 +11,7 @@ We won't go into the details of the code (which can be found [here](face_pixeliz
 *Before deploying our model, we have to make sure that it is compatible with the platform. From an existing model this is easily achieved in a few simple steps.*
 
 ### Step 1.1: Create your worker script
-This first step is to migrate our code to make it isquare compatible. The good news is that no code change is necessary, we just need to write a small script, which we will call the **worker script** from now on. This script contains one class, our **worker**:
+The first step is to make our code isquare compatible. The good news is that no code change is necessary, we just need to write a small script, which we will call the **worker script** from now on. This script contains one class, our **worker**:
 ```
 from archipel.workers.worker import ImagesToImagesWorker
 
@@ -61,15 +61,15 @@ class ArchipelFacePixelizer(ImagesToImagesWorker):
 ```
 **Let's go through it step by step:** 
 
-The imports specify, along with any dependencies or additional functions or classes, which workertype we will be using. In our case, the model takes images as inputs and also return an image (the same as before but the faces blurred), so we choose the `ImagesToImagesWorker`. The name of the workerclass always reflects inputs and outputs. For the moment, following workers are available:
+The imports specifies, along with any dependencies or additional functions or classes, which workertype we will be using. In our case, the model takes images as inputs and also return images (the same as before but the faces blurred), so we choose the `ImagesToImagesWorker`. The name of the workerclass always reflects inputs and outputs. For the moment, the following workers are available:
 - `ImagesToImagesWorker` (e.g. Face blurring)
 - `ImagesToDictsWorker` (e.g. classification or detection)
 - `StringsToDictsWorker` (e.g. NLP model)
-More types will be added on the way. If you have very special types of inputs outputs, don't forget that most things can be expressed as strings!
+More types will be added on the way. If the input outputs types you are looking for are not available, please let us know. In the meantime know thaht most data formats can be converted to strings!
 
-You can specify multiple classes and functions inside your workerscript (you can even write your whole code inside it, although we do not reccomend that). The `__task_class_name__` specifies which class is your workerclass, in our case `ArchipelFacePixeliser`.
+You can specify multiple classes and functions inside your workerscript (you can even write your whole code inside it, although we do not recommend it). The `__task_class_name__` specifies which class is your workerclass, in our case `ArchipelFacePixeliser`.
 
-The worker class defines what is going on when starting the model, and during inference. The first step is to define your class, which inherits from a worker class:
+The worker class defines what is to be done when starting the model and during inference. The first step is to define your class, which inherits from a worker class:
 ```
 class ArchipelFacePixelizer(ImagesToImagesWorker):
 ```
@@ -91,7 +91,7 @@ def add_model_specific_args(self, parent_parser):
 ```
 Adding arguments works as with many CLI parsers in python. You specify a name, a default value, a type and a helper. These values can be modified directly when launching your model from isquare.ai.
 
-When we start our model, some initialization has to be done. For example, we have to load our model to gpu and apply the arguments that were specified above. All these processes are handled in the `setup_model` method, which runs once at worker startup.
+When we start our model, some initializations have to be done. For example, we have to load our model to gpu and apply the arguments that were specified above. All these processes are handled in the `setup_model` method, which runs once at worker startup.
 ```
 def setup_model(self):
         self.model = FacePixelizer(
@@ -110,7 +110,7 @@ def forward(self, imgs):
 ```
 
 In our case, it just calls the `__call__` method of our model, but again, anything is accepted, as long as input and output types are respected.
-We strongly recommend that you implement batched inference for your model, since this will allow you to save costs and higher the efficiency of your model. Workers will take batches as **python lists** of inputs.
+We strongly recommend that you implement batched inference for your model, since this will allow you to save costs by increasing the efficiency of your model. Workers will take batches as **python lists** of inputs.
 
 And that's all you need to get going from the code point of view. Let's proceed, setup our environment and deploy our model!
 
@@ -146,7 +146,8 @@ Now that we have everything we need, let's write a Dockerfile. We start by speci
 ```
 FROM alpineintuition/archipel-base-gpu:latest
 ```
-Here, it is important to note, that you have the choice between `archipel-base-gpu` and `archipel-base-cpu`. Since our model was trained on GPU and is adapted for GPU inference, we choose `archipel-base-gpu`.
+Isquare.ai provides two base images, that you have the choice between `archipel-base-gpu` and `archipel-base-cpu`. As their names suggest, one is optimzed for GPU usage and the other for CPU usage. Since our model was trained on GPU and is adapted for GPU inference, we choose `archipel-base-gpu`.
+
 The next step is to install all our python packages. To do this, we copy the requirements file we created earlier, and install it with pip:
 ```
 COPY requirements.txt requirements.txt
