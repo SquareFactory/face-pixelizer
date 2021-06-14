@@ -2,7 +2,7 @@
 *In this tutorial, we will cover all steps to deploy a model written in python to isquare.ai. This tutorial’s duration is about 30mins, and is addressed at ML developers, software engineers or project managers who want to put their machine learning models into production in a few clicks.*
 
 ## Use case: Face Pixelizer
-France recently wanted to pass a law, named sécurité globale. It could become illegal to publish pictures or videos showing faces of policeman. We put ourselves in the case of a person who wants to make an app, permitting the filming of policeman, but with an AI model blurring the faces. Since these laws come with a rise in police violence, it is super important to continue filming the interventions of law officiers. Therefore, we developed a machine learning model which automatically blurs faces in any image, and is capable of doing so in real time. In this tutorial, we will show how to deploy this model efficiently with isquare.ai. We trained a simple face detection algorithm (retinaface) and changed it to blur the faces. When testing the model on a picture of the street parade, we see the algorithm in action. 
+France recently passed a  new law, named "sécurité globale". It makes it illegal to publish pictures or videos showing policemen without anonymizing. We put ourselves in the case of a person who wants to make an app, permitting to stream and report events, including ones with policemen presence, but with an AI model blurring the faces directly. While understandable for their family and own security this law also makes it tricky to live report political events. Therefore, we developed a machine learning model which automatically blurs faces in any image, and is capable of doing so in real time. In this tutorial, we will show how to deploy this model efficiently with isquare.ai. We trained a simple face detection algorithm (retinaface) and changed it to blur the faces. When testing the model on a picture of the street parade, we see the algorithm in action. 
 ![example](imgs/plot.jpg)
 
 We won't go into the details of the code (which can be found [here](face_pixelizer.py)), but this is appliable to any model that is waiting to be deployed.
@@ -11,7 +11,7 @@ We won't go into the details of the code (which can be found [here](face_pixeliz
 *Before deploying our model, we have to make sure that it is compatible with the platform. From an existing model this is easily achieved in a few simple steps.*
 
 ### Step 1.1: Create your worker script
-This first step is to migrate our code to make it isquare compatible. The good news is that no code change is necessary, we just need to write a small script, which we will call the **worker script** from now on. This script contains one class, our **worker**:
+This first step is to adapt our code to make it isquare compatible. The good news is that no code change is necessary, we just need to write a small script, which we will call the **worker script** from now on. This script contains one class, our **worker**:
 ```
 from archipel.workers.worker import ImagesToImagesWorker
 
