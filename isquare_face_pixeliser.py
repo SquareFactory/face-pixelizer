@@ -3,7 +3,7 @@ from archipel.workers.worker import ImagesToImagesWorker
 from face_pixelizer import FacePixelizer
 
 
-__task_name__ = "ArchipelFacePixelizer"
+__task_class_name__ = "ArchipelFacePixelizer"
 
 
 class ArchipelFacePixelizer(ImagesToImagesWorker):
