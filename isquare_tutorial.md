@@ -8,7 +8,108 @@ With the rapid rise of authoritarian laws like “sćurité globale” in France
 ## Step 1: Make your code isquare compatible
 *Before deploying our model, we have to make sure that it is compatible with the platform. From an existing model this is easily achieved in a few simple steps.*
 
-### Step 1.1: Set up your environment
+### Step 1.1: Create your worker script
+This first step is to migrate our code to make it isquare compatible. The good news is that no code change is necessary, we just need to write a small script, which we will call the worker script from now on. This script is only contains one class that can be "filled in" from the following example:
+```
+from archipel.workers.worker import ImagesToImagesWorker
+
+from face_pixelizer import FacePixelizer
+
+
+__task_class_name__ = "ArchipelFacePixelizer"
+
+
+class ArchipelFacePixelizer(ImagesToImagesWorker):
+    def add_model_specific_args(self, parent_parser):
+        parent_parser.add_argument(
+            "--input-size",
+            default=1080,
+            type=int,
+            help="Network input size, imgs will resized in a square of this size",
+        )
+        parent_parser.add_argument(
+            "--score-threshold",
+            default=0.4,
+            type=float,
+            help="Discords all results with confidence score < score-threshold",
+        )
+        parent_parser.add_argument(
+            "--nms-threshold",
+            default=0.4,
+            type=float,
+            help="Discards all overlapping boxes with IoU > nms-threshold",
+        )
+        parent_parser.add_argument(
+            "--state-dict",
+            default="/opt/face_pixelizer/retinaface_mobilenet_0.25.pth",
+            type=str,
+            help="Path to pretrained weights",
+        )
+
+    def setup_model(self):
+        self.model = FacePixelizer(
+            self.args.input_size,
+            self.args.score_threshold,
+            self.args.nms_threshold,
+            self.args.state_dict,
+        )
+
+    def forward(self, imgs):
+        return self.model(imgs)
+```
+Let's go through it step by step. 
+
+The imports specify, along with any dependencies or additional functions or classes, which workertype we will be using. In our case, the model takes images as inputs and also return an image (the same as before but the faces blurred), so we choose the `ImagesToImagesWorker`. The name of the workerclass always reflects inputs and outputs. For the moment, following workers are available:
+- `ImagesToImagesWorker` (e.g. Face blurring)
+- `ImagesToDictsWorker` (e.g. classification or detection)
+- `StringsToDictsWorker` (e.g. NLP model)
+More types will be added on the way. If you have very special types of inputs outputs, don't forget that most things can be expressed as strings!
+
+You can specify multiple classes and functions inside your workerscript (you can even write your whole code inside it, although we do not reccomend that). The `__task_class_name__` specifies which class is your workerclass, in our case `ArchipelFacePixeliser`.
+
+The worker class defines what is going on when starting the model, and during inference. The first step is to define your class, which inherits from a worker class:
+```
+class ArchipelFacePixelizer(ImagesToImagesWorker):
+```
+Our model can be started with different arguments. For example, the threshhold defines from which confidence value the face is blurred, and we might want to change that value depending on the application.
+```
+def add_model_specific_args(self, parent_parser):
+        parent_parser.add_argument(
+            "--input-size",
+            default=1080,
+            type=int,
+            help="Network input size, imgs will resized in a square of this size",
+        )
+        parent_parser.add_argument(
+            "--score-threshold",
+            default=0.4,
+            type=float,
+            help="Discords all results with confidence score < score-threshold",
+        )
+```
+Adding arguments works as with many CLI parsers in python. You specify a name, a default value, a type and a helper. These values can be modified directly when launching your model from isquare.ai.
+
+When we start our model, some initialization has to be done. For example, we have to load our model to gpu and apply the arguments that were specified above. All these processes are handled in the `setup_model` method, which runs once at worker startup.
+```
+def setup_model(self):
+        self.model = FacePixelizer(
+            self.args.input_size,
+            self.args.score_threshold,
+            self.args.nms_threshold,
+            self.args.state_dict,
+        )
+```
+In our case, we jus initialize our class with the correct arguments, but again, anything can be done here. The workers have full internet access by default, so you could download the weights, check the weather, run a cold start, or anything else.
+
+The last thing we need to define is our model's forward pass, which is represented by the forward method of the worker:
+```
+def forward(self, imgs):
+        return self.model(imgs)
+```
+In our case, it just calls the `__call__` method of our model, but again, anything is accepted, as long as input and output types are respected.
+
+The first step to deploying our ML model is now done, let's move to the next step.
+### Step 1.2: Set up your environment
 Most deep learning models are not coded from scratch and depend on external libraries (e.g. python, tensorflow). With isquare.ai, all requirements are handled by a Dockerfile, which is basically a set of instructions which sets up an environment. If you’re new to Docker, check the [documentation](https://docs.docker.com/engine/reference/builder/). Our face pixelizer was build with pytorch and has following python dependencies:
 ```
 albumentations==0.5.1
@@ -17,6 +118,50 @@ numpy==1.19.2
 torch==1.7.0
 torchvision==0.8.1
 ``` 
-These are saved to a file at the root of the directory, called requirements.txt. Other than the dependencies, we also have the weights (retinaface_moblenet_0.25.pth) of the trained model which are located at the root of our repository, along with the requirements file.
+These are saved to a file at the root of the directory, called requirements.txt. Other than the dependencies, we also have the weights (retinaface_moblenet_0.25.pth) of the trained model which are located at the root of our repository, along with the requirements file. 
+Now that we have everything we need, let's write a Dockerfile. We start by specifying the base image:
+```
+FROM alpineintuition/archipel-base-gpu:latest
+```
+Here, it is important to note, that you have the choice between `archipel-base-gpu` and `archipel-base-cpu`. Since our model was trained on GPU and is adapted for GPU inference, we choose `archipel-base-gpu`.
+The next step is to install all our python packages. To do this, we copy the requirements file we created earlier, and install it with pip:
+```
+COPY requirements.txt requirements.txt
+RUN pip install -r requirements.txt
+```
 
+Our worker depends on some external scripts, so let's create a folder for them and copy them.
+```
+ARG FACE_PIXELIZER=/opt/face_pixelizer
+RUN mkdir ${FACE_PIXELIZER}
+COPY face_pixelizer.py ${FACE_PIXELIZER}
+COPY retinaface.py ${FACE_PIXELIZER}
+COPY utils.py ${FACE_PIXELIZER}
+ENV PYTHONPATH="${FACE_PIXELIZER}:${PYTHONPATH}"
+```
+We simply create a folder at `/opt/`  and copy our files. The last lines adds the folder to the pythonpath, allowing easy imports of all utilities.
+
+The last steps is to copy our wheights:
+COPY "retinaface_mobilenet_0.25.pth" "${FACE_PIXELIZER}/retinaface_mobilenet_0.25.pth"
+
+And that's it!
 ## Step 2: Deploy your model
+*Congratulations! you've adapted your code to make it isquare compatible. Once used to it, it'll take only a few minutes to make your model isquare-compatible. The next step is deploying the model on our servers.*
+## Step 3: Monitor usage and optimize your model
+Since the sécuroté globale amendment on the blurring of law order faces did not pass at the parliament, our model is used way less than expected, and we're looking to reduce costs. We can tradeoff a bit of the performance of the model for a cost optimization by migrating the model to CPU. Since our model automatically detects if a gpu is present, we only need to change the first line of our Dockerfile from
+```
+FROM alpineintuition/archipel-base-gpu:latest
+```
+to
+```
+FROM alpineintuition/archipel-base-cpu:latest
+```
+We've just saved costs by changing one letter in the dockerfile!
+
+Additionaly, we're not how good our model performs, and we would like to monitor the threshold values for our predictions.
+
+This is very simple to achieve. Inside your forward method, we just add:
+```
+self.log(threshold_value)
+```
+This value is now logged, and you can retrieve it on your dashboard on isquare.ai
