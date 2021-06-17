@@ -3,7 +3,7 @@ from archipel.workers.worker import ImagesToImagesWorker
 from face_pixelizer import FacePixelizer
 
 
-__task_name__ = "ArchipelFacePixelizer"
+__task_class_name__ = "ArchipelFacePixelizer"
 
 
 class ArchipelFacePixelizer(ImagesToImagesWorker):
@@ -34,7 +34,12 @@ class ArchipelFacePixelizer(ImagesToImagesWorker):
         )
 
     def setup_model(self):
-        self.model = FacePixelizer(self.args.input_size)
+        self.model = FacePixelizer(
+            self.args.input_size,
+            self.args.score_threshold,
+            self.args.nms_threshold,
+            self.args.state_dict,
+        )
 
     def forward(self, imgs):
         return self.model(imgs)
