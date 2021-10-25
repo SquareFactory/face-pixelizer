@@ -55,10 +55,12 @@ class FacePixelizer:
         self.priors = get_prior_box(height, width).to(self.device)
         self.boxes_scale = torch.Tensor([width, height] * 2).to(self.device)
 
+        print(f"Face pixelizer setup! (on {self.device})")
+
     def __call__(self, imgs: List[np.ndarray]) -> List[np.ndarray]:
 
         # Be sure we not modify inputs
-        imgs = copy.deepcopy(imgs)
+        imgs = copy.copy(imgs)
 
         # transforms imgs to tensors
 
@@ -75,7 +77,7 @@ class FacePixelizer:
         with torch.no_grad():
             boxes, scores = self.model(tensors)
 
-        # Analize outputs
+        # Analyze outputs
 
         variances = [0.1, 0.2]
         boxes = decode_boxes(boxes, self.priors, variances)
@@ -130,6 +132,7 @@ if __name__ == "__main__":
     img = cv2.imread(args.image_path)
     if img is None:
         raise ValueError(f"{args.image_path} is invalid")
+    input_shape = img.shape
 
     # Setup model
 
@@ -141,7 +144,7 @@ if __name__ == "__main__":
 
     start = time.time()
     pred = face_pixelizer([img])[0]
-    print(f"inference done in {time.time() - start:0.3f} secs.")
+    print(f"inference done in {time.time() - start:0.3f} secs. {input_shape}")
 
     # Plot images
 
