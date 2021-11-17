@@ -58,8 +58,6 @@ class FacePixelizer:
         print(f"Face pixelizer setup! (on {self.device})")
 
     def __call__(self, imgs: List[np.ndarray]) -> List[np.ndarray]:
-        return imgs
-
         # Be sure we not modify inputs
         imgs = copy.copy(imgs)
 
