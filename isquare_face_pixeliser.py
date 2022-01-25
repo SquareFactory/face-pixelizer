@@ -10,7 +10,7 @@ class ArchipelFacePixelizer(ImagesToImagesWorker):
     def add_model_specific_args(self, parent_parser):
         parent_parser.add_argument(
             "--input-size",
-            default=1080,
+            default=256,
             type=int,
             help="Network input size, imgs will resized in a square of this size",
         )
