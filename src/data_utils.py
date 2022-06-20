@@ -10,7 +10,7 @@ class WiderFaceDataModule(pl.LightningDataModule):
     def __init__(self, data_dir: str = "./"):
         super().__init__()
         self.data_dir = data_dir
-        self.transform = T.Compose([T.Resize((256, 256)), T.ToTensor()])
+        self.transform = T.Compose([T.Resize((224, 224)), T.ToTensor()])
         # maybe also normelize
 
     def prepare_data(self):
@@ -31,7 +31,7 @@ class WiderFaceDataModule(pl.LightningDataModule):
     def images_faces_transform(self, batch):
         new_batch = {"image": torch.Tensor(), "faces": torch.Tensor()}
         for img, face in zip(batch["image"], batch["faces"]):
-            new_batch["image"] = torch.cat((new_batch["image"], self.transform(img)))
+            new_batch["image"] = torch.cat((new_batch["image"], self.transform(img))).reshape(1,3,224,224)
             if len(face["bbox"]) <= 7:
                             bbox = torch.cat(
                                 (
@@ -49,13 +49,3 @@ class WiderFaceDataModule(pl.LightningDataModule):
 
     def val_dataloader(self):
         return DataLoader(self.val_set, batch_size=32)
-
-
-dm = WiderFaceDataModule()
-dm.prepare_data()
-dm.setup()
-tr = iter(dm.train_dataloader())
-ex = next(tr)
-image, label = ex["image"], ex["faces"]
-print(image.shape, label.shape)
-# print(next((tr)))
