@@ -7,12 +7,26 @@ from datasets import load_dataset
 
 
 class WiderFaceDataModule(pl.LightningDataModule):
-    def __init__(self, data_dir: str = "./"):
+    def __init__(self, args):
         super().__init__()
-        self.data_dir = data_dir
+        self.dataloader_arguments = {
+            "batch_size": args.batch_size,
+            "num_workers": args.num_workers,
+        }
+        self.data_dir = args.data_dir
         self.transform = T.Compose([T.Resize((224, 224)), T.ToTensor()])
         # maybe also normelize
 
+    @staticmethod
+    def add_argparse_args(parent_parser):
+        """Argument parser for datamodule."""
+        parser = parent_parser.add_argument_group("DataModule")
+        parser.add_argument("--data_dir", type=str, default="./")
+        parser.add_argument("--batch_size", type=int, default=32)
+        parser.add_argument("--num_workers", type=int, default=32)
+        parser.add_argument("--seed", type=int, default=303)
+
+        return parent_parser
     def prepare_data(self):
         load_dataset("wider_face", data_dir=self.data_dir)
 
