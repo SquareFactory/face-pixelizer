@@ -61,6 +61,19 @@ if __name__ == "__main__":
     dm = WiderFaceDataModule(args)
     dm.prepare_data()
     dm.setup()
-    model = FaceDetectorModel()
-    trainer = pl.Trainer.from_argparse_args(args)
-    trainer.fit(model, dm)
+    # model = FaceDetectorModel()
+    # trainer = pl.Trainer.from_argparse_args(args)
+    # trainer.fit(model, dm)
+
+
+    mm = next(iter(dm.train_dataloader()))
+    images, faces = mm["image"], mm["faces"][0]
+    print()
+    # transform = T.ToPILImage()
+    # img = transform(images[0])
+    # draw = ImageDraw.Draw(img)
+    # print((faces[0][0], faces[0][1]), (faces[0][2], faces[0][3]))
+
+    # print((faces[0][0], faces[0][1]), (faces[0][2] + faces[0][1], faces[0][3] + faces[0][0]))
+    # draw.rectangle(((faces[0][0], faces[0][1]), (faces[0][2]+ faces[0][0].item(), faces[0][3]+ faces[0][1])), outline="red")
+    # img.save("geeks.jpg")

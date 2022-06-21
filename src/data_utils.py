@@ -4,6 +4,9 @@ import torch
 from torch.utils.data import DataLoader
 from torchvision import transforms as T
 from datasets import load_dataset
+import albumentations as A
+from albumentations.pytorch.transforms import ToTensorV2
+import numpy as np
 
 
 class WiderFaceDataModule(pl.LightningDataModule):
@@ -14,7 +17,14 @@ class WiderFaceDataModule(pl.LightningDataModule):
             "num_workers": args.num_workers,
         }
         self.data_dir = args.data_dir
-        self.transform = T.Compose([T.Resize((224, 224)), T.ToTensor()])
+        self.transform = A.Compose(
+            [A.Resize(height=224, width=224, always_apply=True), ToTensorV2()],
+            bbox_params=A.BboxParams(
+                format="coco",
+                label_fields=["bbox_classes"],
+            ),
+        )
+        # self.transform = T.Compose([T.Resize((224, 224)), T.ToTensor()])
         # maybe also normelize
 
     @staticmethod
@@ -27,6 +37,7 @@ class WiderFaceDataModule(pl.LightningDataModule):
         parser.add_argument("--seed", type=int, default=303)
 
         return parent_parser
+
     def prepare_data(self):
         load_dataset("wider_face", data_dir=self.data_dir)
 
@@ -43,19 +54,33 @@ class WiderFaceDataModule(pl.LightningDataModule):
         self.val_set = self.dataset["validation"]
 
     def images_faces_transform(self, batch):
-        new_batch = {"image": torch.Tensor(), "faces": torch.Tensor()}
+        new_batch = {"image": batch["image"], "faces": torch.Tensor()}
         for img, face in zip(batch["image"], batch["faces"]):
-            new_batch["image"] = torch.cat((new_batch["image"], self.transform(img))).reshape(1,3,224,224)
+            # new_batch["image"] = torch.cat(
+            #     (new_batch["image"], self.transform(img))
+            # ).reshape(1, 3, 224, 224)
             if len(face["bbox"]) <= 7:
-                            bbox = torch.cat(
-                                (
-                                    torch.tensor(face["bbox"]),
-                                    torch.zeros(7 - len(face["bbox"]), 4),
-                                )
-                            )
+                bbox = torch.cat(
+                    (
+                        torch.tensor(face["bbox"]),
+                        torch.zeros(7 - len(face["bbox"]), 4),
+                    )
+                )
             else:
                 bbox = torch.tensor(face["bbox"][:7])
-            new_batch["faces"] = torch.cat((new_batch["faces"], bbox)).reshape(1,7,4)
+            bbox_classes = ["face" for i in range(7)]
+            transformed = self.transform(
+                image=(np.array(img)), bboxes=np.array(bbox), bbox_classes=bbox_classes
+            )
+            transformed_image = transformed["image"]
+            transformed_bboxes = transformed["bboxes"]
+            new_batch["faces"] = torch.cat(
+                (new_batch["faces"], transformed_bboxes)
+            ).reshape(1, 7, 4)
+            new_batch["image"] = torch.cat(
+                (new_batch["image"], transformed_image)
+            ).reshape(1, 3, 224, 224)
+
         return new_batch
 
     def train_dataloader(self):
