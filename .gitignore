@@ -129,8 +129,10 @@ dmypy.json
 .pyre/
 
 # dataset cache
-celeba/
-widerface/
+WIDER_train.zip
+WIDER_val.zip
+WIDER_train/
+WIDER_val/
 
 lightning_logs/
 .vscode/
