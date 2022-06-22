@@ -31,7 +31,7 @@ optimizer:
 
 trainer:
   type: pytorch_lightning.Trainer
-  # gpus: 1
+  gpus: 1
   # amp_level: O1
   max_epochs: 1
 
