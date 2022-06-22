@@ -1,5 +1,8 @@
+albumentations==1.0.0
+torch==1.9.0
+torchvision==0.10.0
 pytorch_lightning==1.6.4
-datasets==2.3.2
-timm==0.5.4
-albumentations==1.2.0
 gdown
+addict
+iglovikov-helper-functions
+retinaface_pytorch
