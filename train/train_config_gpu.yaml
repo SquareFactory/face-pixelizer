@@ -1,16 +1,8 @@
 ---
 seed: 1984
 
-sync_bn: True
-
 num_workers: 4
-experiment_name: "2020-07-19"
-
-train_image_path: /Users/bibs2091/Desktop/projects/face-pixelizer/WIDER_train/WIDER_train/images
-val_image_path: /Users/bibs2091/Desktop/projects/face-pixelizer/WIDER_val/WIDER_val/images
-
-train_annotation_path: /Users/bibs2091/Desktop/projects/face-pixelizer/annotations/train/label.json
-val_annotation_path: /Users/bibs2091/Desktop/projects/face-pixelizer/annotations/val/label.json
+experiment_name: "pixelizer_isquare"
 
 num_classes: 2
 
@@ -22,18 +14,23 @@ model:
   in_channels: 256
   out_channels: 256
 
-
 optimizer:
   type: torch.optim.SGD
   lr: 0.001
-  weight_decay: 0.0005
+  weight_decay: 0.0001
   momentum: 0.9
 
 trainer:
   type: pytorch_lightning.Trainer
-  gpus: 1
-  # amp_level: O1
-  max_epochs: 1
+  accelerator: gpu
+  gpus: 2
+  max_epochs: 20
+  strategy: ddp
+  num_sanity_val_steps: 1
+  progress_bar_refresh_rate: 50
+  benchmark: True
+  precision: 16
+  sync_batchnorm: True
 
 scheduler:
   type: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts
@@ -41,14 +38,22 @@ scheduler:
   T_mult: 2
 
 train_parameters:
-  batch_size: 8
+  batch_size: 6
   rotate90: False
 
+checkpoint_callback:
+  type: pytorch_lightning.callbacks.ModelCheckpoint
+  monitor: val_loss
+  verbose: True
+  mode: min
+  save_top_k: 1
+  auto_insert_metric_name: True
 
 val_parameters:
   batch_size: 10
   iou_threshold: 0.4
   rotate90: False
+  box_min_size: 5
 
 loss:
   type: retinaface.multibox_loss.MultiBoxLoss
@@ -67,7 +72,7 @@ prior_box:
   steps: [8, 16, 32]
   clip: False
 
-image_size: [840, 840]
+image_size: [1024, 1024]
 
 loss_weights:
   localization: 2
@@ -86,16 +91,19 @@ train_aug:
     transforms:
       - __class_fullname__: albumentations.augmentations.transforms.RandomBrightnessContrast
         always_apply: false
-        brightness_limit: 0.125
+        brightness_limit: 0.2
         contrast_limit: [0.5, 1.5]
         p: 0.5
       - __class_fullname__: albumentations.augmentations.transforms.HueSaturationValue
-        hue_shift_limit: 18
-        val_shift_limit: 0
+        hue_shift_limit: 20
+        val_shift_limit: 20
+        p: 0.5
+      - __class_fullname__: albumentations.augmentations.transforms.RandomGamma
+        gamma_limit: [80, 120]
         p: 0.5
       - __class_fullname__: albumentations.augmentations.transforms.Resize
-        height: 840
-        width: 840
+        height: 1024
+        width: 1024
         p: 1
       - __class_fullname__: albumentations.augmentations.transforms.Normalize
         always_apply: false
@@ -118,8 +126,8 @@ val_aug:
     p: 1
     transforms:
       - __class_fullname__: albumentations.augmentations.transforms.Resize
-        height: 840
-        width: 840
+        height: 1024
+        width: 1024
         p: 1
       - __class_fullname__: albumentations.augmentations.transforms.Normalize
         always_apply: false

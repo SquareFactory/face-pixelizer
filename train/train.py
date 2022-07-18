@@ -1,5 +1,4 @@
 import argparse
-import os
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple, Union
@@ -14,7 +13,6 @@ from albumentations.core.serialization import from_dict
 from iglovikov_helper_functions.config_parsing.utils import object_from_dict
 from iglovikov_helper_functions.metrics.map import recall_precision
 from pytorch_lightning.core.optimizer import LightningOptimizer
-from pytorch_lightning.loggers import WandbLogger
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from torchvision.ops import nms
@@ -23,11 +21,11 @@ from retinaface.box_utils import decode
 from retinaface.data_augment import Preproc
 from retinaface.dataset import FaceDetectionDataset, detection_collate
 
-TRAIN_IMAGE_PATH = Path(os.environ["TRAIN_IMAGE_PATH"])
-VAL_IMAGE_PATH = Path(os.environ["VAL_IMAGE_PATH"])
+TRAIN_IMAGE_PATH = Path("WIDER_train/WIDER_train/images")
+VAL_IMAGE_PATH = Path("WIDER_val/WIDER_val/images")
 
-TRAIN_LABEL_PATH = Path(os.environ["TRAIN_LABEL_PATH"])
-VAL_LABEL_PATH = Path(os.environ["VAL_LABEL_PATH"])
+TRAIN_LABEL_PATH = Path("annotations/train/label.json")
+VAL_LABEL_PATH = Path("annotations/val/label.json")
 
 
 def get_args() -> Any:
@@ -38,12 +36,8 @@ def get_args() -> Any:
 
 
 class RetinaFace(pl.LightningModule):  # pylint: disable=R0901
-    def __init__(self, config: Adict[str, Any]) -> None:
+    def __init__(self, config):
         super().__init__()
-        print(TRAIN_IMAGE_PATH)
-        print(VAL_IMAGE_PATH)
-        print(TRAIN_LABEL_PATH)
-        print(VAL_LABEL_PATH)
         self.config = config
 
         self.prior_box = object_from_dict(self.config.prior_box, image_size=self.config.image_size)
@@ -72,7 +66,7 @@ class RetinaFace(pl.LightningModule):  # pylint: disable=R0901
             num_workers=self.config.num_workers,
             shuffle=True,
             pin_memory=True,
-            drop_last=False,
+            drop_last=True,
             collate_fn=detection_collate,
         )
 
@@ -240,15 +234,11 @@ def main() -> None:
 
     pipeline = RetinaFace(config)
 
-    # Path(config.checkpoint_callback.filepath).mkdir(exist_ok=True, parents=True)
     trainer = object_from_dict(
         config.trainer,
-        # logger=WandbLogger(config.experiment_name),
-        # checkpoint_callback=object_from_dict(config.checkpoint_callback),
+        checkpoint_callback=object_from_dict(config.checkpoint_callback),
     )
-
     trainer.fit(pipeline)
-
 
 if __name__ == "__main__":
     main()

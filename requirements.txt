@@ -1,8 +1,0 @@
-albumentations==1.0.0
-torch==1.9.0
-torchvision==0.10.0
-pytorch_lightning==1.6.4
-gdown==4.4.0
-addict
-iglovikov-helper-functions
-retinaface_pytorch
