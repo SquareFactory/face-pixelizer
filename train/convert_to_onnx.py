@@ -16,14 +16,20 @@ from retinaface.box_utils import decode, decode_landm
 from retinaface.network import RetinaFace
 from retinaface.prior_box import priorbox
 from retinaface.utils import tensor_from_rgb_image, vis_annotations
+from collections import OrderedDict
 import warnings
 warnings.filterwarnings('ignore')
-state_dict = model_zoo.load_url(
-    "https://github.com/ternaus/retinaface/releases/download/0.01/retinaface_resnet50_2020-07-20-f168fae3c.zip",
-    progress=True,
-    map_location="cpu",
-)
+# state_dict = model_zoo.load_url(
+#     "https://github.com/ternaus/retinaface/releases/download/0.01/retinaface_resnet50_2020-07-20-f168fae3c.zip",
+#     progress=True,
+#     map_location="cpu",
+# )
 
+state_dict = torch.load("deploy/model.ckpt", map_location="cpu")
+new_state_dict = OrderedDict()
+for k, v in state_dict["state_dict"].items():
+    name = k[6:]  # remove `module.`
+    new_state_dict[name] = v
 
 class M(nn.Module):
     def __init__(self, max_size: int = 1280):
@@ -35,7 +41,7 @@ class M(nn.Module):
             in_channels=256,
             out_channels=256,
         )
-        self.model.load_state_dict(state_dict)
+        self.model.load_state_dict(new_state_dict)
 
         self.max_size = max_size
 
@@ -124,8 +130,8 @@ def main() -> None:
         do_constant_folding=True,
     )
 
-    onnx_model = onnx.load(args.output_file)
-    onnx.checker.check_model(onnx_model)
+    # onnx_model = onnx.load(args.output_file)
+    # onnx.checker.check_model(onnx_model)
 
     ort_session = ort.InferenceSession(args.output_file)
     start = time.time()
@@ -149,8 +155,8 @@ def main() -> None:
                 "landmarks": outputs[2][box_id].reshape(-1, 2).tolist(),
             }
         ]
-
-    im = albu.Compose([albu.LongestMaxSize(max_size=1280)])(image=raw_image)["image"]
+    
+    im = albu.Compose([albu.LongestMaxSize(max_size=args.max_size)])(image=raw_image)["image"]
     cv2.imwrite("example.jpg", vis_annotations(im, annotations))
 
 
