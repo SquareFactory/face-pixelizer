@@ -136,3 +136,5 @@ WIDER_val/
 
 lightning_logs/
 .vscode/
+*.ckpt
+.DS_Store
