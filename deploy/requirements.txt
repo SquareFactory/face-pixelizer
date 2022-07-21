@@ -2,3 +2,4 @@ matplotlib
 opencv-python
 retinaface_pytorch
 onnxruntime==1.11.1
+albumentations==1.0.0

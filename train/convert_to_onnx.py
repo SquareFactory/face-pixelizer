@@ -13,6 +13,7 @@ from retinaface.utils import tensor_from_rgb_image
 from collections import OrderedDict
 import warnings
 import os
+import onnx
 
 warnings.filterwarnings('ignore')
 
@@ -112,9 +113,8 @@ def main() -> None:
         do_constant_folding=True,
     )
 
-    import onnx
     # Load the ONNX model
-    model = onnx.load("alexnet.onnx")
+    model = onnx.load(args.output_file)
     # Check that the model is well formed
     onnx.checker.check_model(model)
 

@@ -48,6 +48,7 @@ checkpoint_callback:
   mode: min
   save_top_k: 1
   auto_insert_metric_name: True
+  save_weights_only: True
 
 val_parameters:
   batch_size: 10

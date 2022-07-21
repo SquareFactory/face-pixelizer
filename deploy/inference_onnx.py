@@ -9,14 +9,22 @@ from retinaface.utils import vis_annotations
 
 ROUNDING_DIGITS = 2
 
-def prepare_image(image: np.ndarray, max_size: int = 1280) -> np.ndarray:
+
+def get_model_onnx(local, model_path, max_size_):
+    global max_size
+    max_size = max_size_
+    if not local:
+        return ort.InferenceSession(model_path)
+    else:
+        raise NotImplementedError
+
+def prepare_image(image: np.ndarray) -> np.ndarray:
     return albu.Compose([albu.LongestMaxSize(max_size=max_size), albu.Normalize(p=1)])(image=image)["image"]
 
-def get_model_onnx(model_path):
-    return ort.InferenceSession(model_path)
 
 
-def predict_image(ort_session, image, max_size):
+
+def predict_onnx(ort_session, image):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     im = prepare_image(image, max_size)
 
@@ -58,5 +66,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     raw_image = cv2.imread(args.image_path)
     model = get_model_onnx(args.model_path)
-    output = predict_image(model,raw_image,args.max_size)
+    output = predict_onnx(model,raw_image,args.max_size)
     plt.imsave("example.png",output)
