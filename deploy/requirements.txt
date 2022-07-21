@@ -1,3 +1,4 @@
 matplotlib
 opencv-python
 retinaface_pytorch
+onnxruntime==1.11.1

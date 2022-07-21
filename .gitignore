@@ -138,3 +138,4 @@ lightning_logs/
 .vscode/
 *.ckpt
 .DS_Store
+*.onnx

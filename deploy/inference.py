@@ -52,5 +52,4 @@ if __name__ == "__main__":
         start = time.time()
         annotation = model.predict_jsons(image)
         print(f"inference done in {time.time() - start:0.3f} secs")
-
     plt.imsave(args.output_path, vis_annotations(image, annotation))

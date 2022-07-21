@@ -1,18 +1,46 @@
 import onnxruntime as ort
 import argparse
-import torch
 import time
 import numpy as np
+from matplotlib import pyplot as plt
 import cv2
 import albumentations as albu
 from retinaface.utils import vis_annotations
 
+ROUNDING_DIGITS = 2
+
 def prepare_image(image: np.ndarray, max_size: int = 1280) -> np.ndarray:
-    image = albu.Compose([albu.LongestMaxSize(max_size=max_size), albu.Normalize(p=1)])(image=image)["image"]
+    return albu.Compose([albu.LongestMaxSize(max_size=max_size), albu.Normalize(p=1)])(image=image)["image"]
 
-    height, width = image.shape[:2]
+def get_model_onnx(model_path):
+    return ort.InferenceSession(model_path)
 
-    return cv2.copyMakeBorder(image, 0, max_size - height, 0, max_size - width, borderType=cv2.BORDER_CONSTANT)
+
+def predict_image(ort_session, image, max_size):
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    im = prepare_image(image, max_size)
+
+    # start = time.time()
+    outputs = ort_session.run(None, {"input": np.transpose(im, (2, 0, 1))})
+    # print(f"inference done in {time.time() - start:0.3f} secs")
+
+    annotations = []
+
+    for box_id, bbox in enumerate(outputs[0]):
+        annotations += [
+            {
+                "bbox": np.round(bbox.astype(float), ROUNDING_DIGITS).tolist(),
+                "score": np.round(outputs[1][box_id], ROUNDING_DIGITS),
+                "landmarks": np.round(outputs[2][box_id].astype(float), ROUNDING_DIGITS)
+                        .reshape(-1, 2)
+                        .tolist(),
+            }
+        ]
+    im = albu.Compose([albu.LongestMaxSize(max_size=max_size)])(image=image)["image"]
+    return vis_annotations(im, annotations)
+
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
@@ -25,29 +53,10 @@ if __name__ == "__main__":
         help="The max size of the image to resize.",
         required=False,
         default=256,
+        type=int
     )
     args = parser.parse_args()
-    image = cv2.imread(args.image_path)
-    im = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    im = prepare_image(im, args.max_size)
-
-    ort_session = ort.InferenceSession(args.model_path)
-    start = time.time()
-    # outputs = ort_session.run(None, {"input": np.expand_dims(np.transpose(image, (2, 0, 1)), 0)})
-    print(np.expand_dims(im.astype(np.float32),0).shape)
-    outputs = ort_session.run(None, {"input": np.expand_dims(np.transpose(im, (2, 0, 1)).astype(np.float32),0)})
-    print(f"inference done in {time.time() - start:0.3f} secs")
-
-    annotations = []
-
-    for box_id, box in enumerate(outputs[0]):
-        annotations += [
-            {
-                "bbox": box.tolist(),
-                "score": outputs[1][box_id],
-                "landmarks": outputs[2][box_id].reshape(-1, 2).tolist(),
-            }
-        ]
-
-    image = albu.Compose([albu.LongestMaxSize(max_size=args.max_size)])(image=image)["image"]
-    cv2.imwrite("example.jpg", vis_annotations(image, annotations))
+    raw_image = cv2.imread(args.image_path)
+    model = get_model_onnx(args.model_path)
+    output = predict_image(model,raw_image,args.max_size)
+    plt.imsave("example.png",output)
