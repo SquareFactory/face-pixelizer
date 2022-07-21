@@ -6,6 +6,7 @@ import time
 import torch
 from collections import OrderedDict
 import argparse
+from retinaface.pre_trained_models import get_model as get_model_url
 
 
 def get_model(local, model_path = None, max_size=512, device="cpu"):
@@ -19,7 +20,7 @@ def get_model(local, model_path = None, max_size=512, device="cpu"):
         model.load_state_dict(new_state_dict)
         return model
 
-    return get_model("resnet50_2020-07-20", max_size, device)
+    return get_model_url("resnet50_2020-07-20", max_size, device)
         
 
 

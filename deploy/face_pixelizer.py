@@ -2,8 +2,8 @@
 
 from archipel.workers.worker import ImagesToImagesWorker
 
-from .inference import get_model, predict 
-from .inference_onnx import get_model_onnx, predict_onnx
+from inference import get_model, predict 
+from inference_onnx import get_model_onnx, predict_onnx
 
 
 __task_class_name__ = "FacePixelizer"
@@ -17,9 +17,9 @@ class FacePixelizer(ImagesToImagesWorker):
             type=int,
             help="Network input size, imgs will resized in a square of this size",
         )
-        parent_parser.add_argument("-l", "--local_model", help="If the model is local or from a url.", action='store_false')
+        parent_parser.add_argument("-l", "--local_model", help="If the model is local or from a url.", action='store_true')
         parent_parser.add_argument("-m", "--model_path", help="Path of the local model.", type=str)
-        parent_parser.add_argument("-o", "--onnx", help="If the model type is onnx", action='store_flase')
+        parent_parser.add_argument("-o", "--onnx", help="If the model type is onnx", action='store_true')
         parent_parser.add_argument("-d", "--device", help="device to use (either cpu or cuda)", type=str, default="cpu")
         
 
@@ -31,6 +31,6 @@ class FacePixelizer(ImagesToImagesWorker):
 
     def forward(self, imgs):
         if self.args.onnx:
-            return predict(self.model, imgs[0])
-        else:
             return predict_onnx(self.model, imgs[0])
+        else:
+            return predict(self.model, imgs[0])
