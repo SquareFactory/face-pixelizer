@@ -236,7 +236,7 @@ def main() -> None:
 
     trainer = object_from_dict(
         config.trainer,
-        checkpoint_callback=object_from_dict(config.checkpoint_callback),
+        callbacks=[object_from_dict(config.checkpoint_callback),]
     )
     trainer.fit(pipeline)
 

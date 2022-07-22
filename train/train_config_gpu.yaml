@@ -42,6 +42,7 @@ train_parameters:
   rotate90: False
 
 checkpoint_callback:
+  checkpoint_callback:
   type: pytorch_lightning.callbacks.ModelCheckpoint
   monitor: val_loss
   verbose: True
@@ -49,6 +50,8 @@ checkpoint_callback:
   save_top_k: 1
   auto_insert_metric_name: True
   save_weights_only: True
+  dirpath: '../artifacts'
+  filename: model
 
 val_parameters:
   batch_size: 10
