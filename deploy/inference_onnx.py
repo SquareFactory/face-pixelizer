@@ -13,7 +13,7 @@ ROUNDING_DIGITS = 2
 def get_model_onnx(local, model_path, max_size_):
     global max_size
     max_size = max_size_
-    if not local:
+    if local:
         return ort.InferenceSession(model_path)
     else:
         raise NotImplementedError
@@ -21,12 +21,9 @@ def get_model_onnx(local, model_path, max_size_):
 def prepare_image(image: np.ndarray) -> np.ndarray:
     return albu.Compose([albu.LongestMaxSize(max_size=max_size), albu.Normalize(p=1)])(image=image)["image"]
 
-
-
-
 def predict_onnx(ort_session, image):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    im = prepare_image(image, max_size)
+    im = prepare_image(image)
 
     # start = time.time()
     outputs = ort_session.run(None, {"input": np.transpose(im, (2, 0, 1))})
@@ -65,6 +62,6 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     raw_image = cv2.imread(args.image_path)
-    model = get_model_onnx(args.model_path)
-    output = predict_onnx(model,raw_image,args.max_size)
+    model = get_model_onnx(True, args.model_path, args.max_size)
+    output = predict_onnx(model,raw_image)
     plt.imsave("example.png",output)
