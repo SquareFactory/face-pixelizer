@@ -127,3 +127,15 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# dataset cache
+WIDER_train.zip
+WIDER_val.zip
+WIDER_train/
+WIDER_val/
+
+lightning_logs/
+.vscode/
+*.ckpt
+.DS_Store
+*.onnx
