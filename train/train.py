@@ -28,12 +28,7 @@ TRAIN_LABEL_PATH = Path("annotations/train/label.json")
 VAL_LABEL_PATH = Path("annotations/val/label.json")
 
 
-def get_args() -> Any:
-    parser = argparse.ArgumentParser()
-    arg = parser.add_argument
-    arg("-c", "--config_path", type=Path, help="Path to the config.", required=True)
-    return parser.parse_args()
-
+    
 
 class RetinaFace(pl.LightningModule):  # pylint: disable=R0901
     def __init__(self, config):
@@ -225,7 +220,11 @@ class RetinaFace(pl.LightningModule):  # pylint: disable=R0901
 
 
 def main() -> None:
-    args = get_args()
+    parser = argparse.ArgumentParser()
+    arg = parser.add_argument
+    arg("-c", "--config_path", type=Path, help="Path to the config.", required=True)
+    arg("-c", "--accelerator", type=Path, help="Path to the config.", required=True)
+    args =  parser.parse_args()
 
     with args.config_path.open() as f:
         config = Adict(yaml.load(f, Loader=yaml.SafeLoader))
@@ -234,9 +233,15 @@ def main() -> None:
 
     pipeline = RetinaFace(config)
 
-    trainer = object_from_dict(
-        config.trainer,
-        callbacks=[object_from_dict(config.checkpoint_callback),]
+    trainer = pl.Trainer(
+        accelerator= "auto",
+        max_epochs= 1,
+        num_sanity_val_steps= 1,
+        progress_bar_refresh_rate= 50,
+        benchmark= True,
+        precision= 16,
+        sync_batchnorm= True,
+        callbacks=[object_from_dict(config.checkpoint_callback)]
     )
     trainer.fit(pipeline)
 
