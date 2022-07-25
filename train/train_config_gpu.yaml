@@ -1,5 +1,5 @@
 ---
-seed: 1984
+seed: 42
 
 num_workers: 4
 experiment_name: "pixelizer_isquare"
@@ -20,29 +20,14 @@ optimizer:
   weight_decay: 0.0001
   momentum: 0.9
 
-trainer:
-  type: pytorch_lightning.Trainer
-  accelerator: gpu
-  gpus: 2
-  max_epochs: 20
-  strategy: ddp
-  num_sanity_val_steps: 1
-  progress_bar_refresh_rate: 50
-  benchmark: True
-  precision: 16
-  sync_batchnorm: True
 
 scheduler:
   type: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts
   T_0: 10
   T_mult: 2
 
-train_parameters:
-  batch_size: 6
-  rotate90: False
 
 checkpoint_callback:
-  checkpoint_callback:
   type: pytorch_lightning.callbacks.ModelCheckpoint
   monitor: val_loss
   verbose: True
@@ -53,11 +38,6 @@ checkpoint_callback:
   dirpath: '../artifacts'
   filename: model
 
-val_parameters:
-  batch_size: 10
-  iou_threshold: 0.4
-  rotate90: False
-  box_min_size: 5
 
 loss:
   type: retinaface.multibox_loss.MultiBoxLoss

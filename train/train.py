@@ -31,7 +31,7 @@ VAL_LABEL_PATH = Path("annotations/val/label.json")
     
 
 class RetinaFace(pl.LightningModule):  # pylint: disable=R0901
-    def __init__(self, config):
+    def __init__(self, config, batch_size):
         super().__init__()
         self.config = config
 
@@ -41,6 +41,7 @@ class RetinaFace(pl.LightningModule):  # pylint: disable=R0901
         self.loss_weights = self.config.loss_weights
 
         self.loss = object_from_dict(self.config.loss, priors=self.prior_box)
+        self.batch_size = batch_size
 
     def setup(self, stage=0) -> None:  # type: ignore
         self.preproc = Preproc(img_dim=self.config.image_size[0])
@@ -55,9 +56,9 @@ class RetinaFace(pl.LightningModule):  # pylint: disable=R0901
                 image_path=TRAIN_IMAGE_PATH,
                 transform=from_dict(self.config.train_aug),
                 preproc=self.preproc,
-                rotate90=self.config.train_parameters.rotate90,
+                rotate90=False,
             ),
-            batch_size=self.config.train_parameters.batch_size,
+            batch_size=self.batch_size,
             num_workers=self.config.num_workers,
             shuffle=True,
             pin_memory=True,
@@ -74,9 +75,9 @@ class RetinaFace(pl.LightningModule):  # pylint: disable=R0901
                 image_path=VAL_IMAGE_PATH,
                 transform=from_dict(self.config.val_aug),
                 preproc=self.preproc,
-                rotate90=self.config.val_parameters.rotate90,
+                rotate90=False,
             ),
-            batch_size=self.config.val_parameters.batch_size,
+            batch_size=self.batch_size,
             num_workers=self.config.num_workers,
             shuffle=False,
             pin_memory=True,
@@ -152,7 +153,7 @@ class RetinaFace(pl.LightningModule):  # pylint: disable=R0901
             boxes *= scale
 
             # do NMS
-            keep = nms(boxes, scores, self.config.val_parameters.iou_threshold)
+            keep = nms(boxes, scores, 0.4)
             boxes = boxes[keep, :].cpu().numpy()
 
             if boxes.shape[0] == 0:
@@ -223,7 +224,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
     arg("-c", "--config_path", type=Path, help="Path to the config.", required=True)
-    arg("-c", "--accelerator", type=Path, help="Path to the config.", required=True)
+    arg("-e", "--epochs", type=int, help="the number of epoches", default=10)
+    arg("-b", "--batch_size", type=int, help="the batch size of the trainloaders", default=6)
     args =  parser.parse_args()
 
     with args.config_path.open() as f:
@@ -231,15 +233,17 @@ def main() -> None:
 
     pl.trainer.seed_everything(config.seed)
 
-    pipeline = RetinaFace(config)
-
+    pipeline = RetinaFace(config, args.batch_size)
+    gpu_count = torch.cuda.device_count()
+    
     trainer = pl.Trainer(
-        accelerator= "auto",
-        max_epochs= 1,
+        accelerator= "gpu" if gpu_count > 0 else "cpu",
+        gpus=gpu_count,
+        max_epochs= args.epochs,
         num_sanity_val_steps= 1,
-        progress_bar_refresh_rate= 50,
+        progress_bar_refresh_rate= 1,
         benchmark= True,
-        precision= 16,
+        precision= 16 if gpu_count > 0 else 32,
         sync_batchnorm= True,
         callbacks=[object_from_dict(config.checkpoint_callback)]
     )
