@@ -2,8 +2,8 @@ import argparse
 import copy
 import os
 import time
-from typing import List
 import warnings
+from typing import List
 
 import albumentations as A
 import cv2
@@ -12,9 +12,8 @@ import numpy as np
 import torch
 import torchvision
 
-from retinaface import retinaface
+from custom_retinaface import retinaface
 from utils import decode_boxes, get_prior_box, pixelize
-
 
 warnings.simplefilter("ignore")
 
@@ -26,7 +25,7 @@ class FacePixelizer:
         score_threshold: float = 0.5,
         nms_threshold: float = 0.5,
         state_dict: str = "/opt/face_pixelizer/retinaface_mobilenet_0.25.pth",
-        device = "cuda"
+        device: str = "cuda",
     ):
         self.device = device if torch.cuda.is_available() else "cpu"
         self.score_threshold = score_threshold
@@ -138,9 +137,7 @@ if __name__ == "__main__":
     # Setup model
 
     face_pixelizer = FacePixelizer(
-        input_size=512,
-        state_dict="retinaface_mobilenet_0.25.pth",
-        device=args.device
+        input_size=512, state_dict="retinaface_mobilenet_0.25.pth", device=args.device
     )
 
     # Inference
