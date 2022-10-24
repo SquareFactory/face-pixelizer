@@ -26,8 +26,9 @@ class FacePixelizer:
         score_threshold: float = 0.5,
         nms_threshold: float = 0.5,
         state_dict: str = "/opt/face_pixelizer/retinaface_mobilenet_0.25.pth",
+        device = "cpu"
     ):
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = device if torch.cuda.is_available() else "cpu"
         self.score_threshold = score_threshold
         self.nms_threshold = nms_threshold
         self.input_size = input_size
@@ -123,6 +124,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--image_path", type=str)
+    parser.add_argument("--device", type=str, default="cpu")
     args = parser.parse_args()
 
     if not os.path.isfile(args.image_path):
