@@ -138,7 +138,9 @@ if __name__ == "__main__":
     # Setup model
 
     face_pixelizer = FacePixelizer(
-        input_size=512, state_dict="retinaface_mobilenet_0.25.pth"
+        input_size=512,
+        state_dict="retinaface_mobilenet_0.25.pth",
+        device=args.device
     )
 
     # Inference
