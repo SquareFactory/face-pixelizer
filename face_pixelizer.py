@@ -59,8 +59,8 @@ class FacePixelizer:
         print(f"Face pixelizer setup! (on {self.device})")
 
     def __call__(self, imgs: List[np.ndarray]) -> List[np.ndarray]:
-        # Be sure we not modify inputs
-        imgs = copy.copy(imgs)
+        # Be sure we not modify inputs (deepcopy is necessary, shallow copy keeps reference to actual inputs)
+        imgs = copy.deepcopy(imgs)
 
         # transforms imgs to tensors
 
