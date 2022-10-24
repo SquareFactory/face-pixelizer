@@ -59,7 +59,7 @@ class FacePixelizer:
         print(f"Face pixelizer setup! (on {self.device})")
 
     def __call__(self, imgs: List[np.ndarray]) -> List[np.ndarray]:
-        # Be sure we not modify inputs (deepcopy is necessary, shallow copy keeps reference to actual inputs)
+        # Be sure we not modify inputs (deepcopy is necessary, shallow copy keeps reference to real inputs)
         imgs = copy.deepcopy(imgs)
 
         # transforms imgs to tensors
@@ -124,7 +124,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--image_path", type=str)
-    parser.add_argument("--device", type=str, default="cpu")
+    parser.add_argument("--device", type=str, default="cuda")
     args = parser.parse_args()
 
     if not os.path.isfile(args.image_path):
