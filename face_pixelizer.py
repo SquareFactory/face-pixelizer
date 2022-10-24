@@ -26,7 +26,7 @@ class FacePixelizer:
         score_threshold: float = 0.5,
         nms_threshold: float = 0.5,
         state_dict: str = "/opt/face_pixelizer/retinaface_mobilenet_0.25.pth",
-        device = "cpu"
+        device = "cuda"
     ):
         self.device = device if torch.cuda.is_available() else "cpu"
         self.score_threshold = score_threshold
