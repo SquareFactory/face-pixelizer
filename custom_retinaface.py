@@ -6,6 +6,8 @@ in our case
 """
 
 
+from typing import Dict
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -248,12 +250,13 @@ class RetinaFace(nn.Module):
         return bbox_regressions, classifications
 
 
-def retinaface(weights_path: str = None):
+def retinaface(config: Dict = {}):
     model = RetinaFace()
-
-    if weights_path is not None:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        weights = torch.load(weights_path, map_location=torch.device(device))
-        model.load_state_dict(weights)
+    if "weights_path" in config:
+        weights_path = config["weights_path"]
+        if weights_path is not None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            weights = torch.load(weights_path, map_location=torch.device(device))
+            model.load_state_dict(weights)
 
     return model
