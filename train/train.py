@@ -1,12 +1,15 @@
 from pathlib import Path
 from typing import Tuple
 
+import albumentations as A
+import cv2
 import pytorch_lightning as pl
 import torch
-import torchvision.transforms as transforms
+from albumentations.pytorch import ToTensorV2
 
 from models.custom_retinaface import retinaface
 from utils.data_augmentation import Preproc
+from utils.data_download import download_data
 from utils.multibox_loss import MultiBoxLoss
 from utils.utils import get_prior_box
 
@@ -58,8 +61,10 @@ class RetinaFace(pl.LightningModule):
 class FaceDataModule(pl.LightningDataModule):
     """doc here"""
 
+    # TODO improve default values mgmt
     def __init__(
         self,
+        config,
         train_data_dir=TRAIN_IMAGE_PATH,
         val_data_dir=VAL_IMAGE_PATH,
         train_labels_path=TRAIN_LABEL_PATH,
@@ -67,7 +72,7 @@ class FaceDataModule(pl.LightningDataModule):
         batch_size=256,
         num_workers=2,
     ):
-        # TODO improve default values mgmt
+
         super().__init__()
         self.train_data_dir = train_data_dir
         self.val_data_dir = val_data_dir
@@ -78,17 +83,28 @@ class FaceDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
 
-        self.transform = transforms.Compose(
+        self.image_size = config["image_size"]
+
+        input_size = max(self.image_size)
+        quick_means = [104.0, 117.0, 123.0]  # TODO deal with this ugly impl.
+
+        self.transform = A.Compose(
             [
-                transforms.ToTensor(),
-                transforms.Normalize((0.1307,), (0.3081,)),
+                A.LongestMaxSize(max_size=input_size),
+                A.PadIfNeeded(
+                    min_height=input_size,
+                    min_width=input_size,
+                    border_mode=cv2.BORDER_CONSTANT,
+                    value=0,
+                ),
+                A.Normalize(mean=quick_means, std=[1, 1, 1]),
+                ToTensorV2(),
             ]
         )
 
-        self.dims = (1, 28, 28)
-        self.num_classes = 10
-
-    def setup(self, stage=0) -> None:  # type: ignore
-        self.preproc = Preproc(
-            img_dim=self.config.image_size[0]
-        )  # Is it necessary in setup? could it be called at init?
+    def setup(self, stage=None) -> None:  # type: ignore
+        # check if dataset exists
+        train_ok = TRAIN_IMAGE_PATH.exists()
+        val_ok = VAL_IMAGE_PATH.exists()
+        download_data(train_ok, val_ok, unzip=True)
+        self.preproc = Preproc(img_dim=self.config.image_size[0])
