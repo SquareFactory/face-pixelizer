@@ -1,8 +1,7 @@
-import gdown
-import shutil
-import json
-import numpy as np
 import argparse
+import shutil
+
+import gdown
 
 
 def download_data(
