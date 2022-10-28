@@ -1,7 +1,7 @@
 from pathlib import Path
-from typing import Tuple, Callable, Union, Any, Dict
+from typing import Tuple, Callable, Union, Any, Dict, List
 from collections import OrderedDict
-
+from iglovikov_helper_functions.metrics.map import recall_precision
 import argparse
 import albumentations as A
 import cv2
@@ -108,83 +108,110 @@ class RetinaFace(pl.LightningModule):
 
     def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int):  # type: ignore
         images = batch["image"]
+        targets = batch["annotation"]
 
-        image_height = images.shape[2]
-        image_width = images.shape[3]
-        annotations = batch["annotation"]
-        file_names = batch["file_name"]
+
+        # image_height = images.shape[2]
+        # image_width = images.shape[3]
+        # annotations = batch["annotation"]
+        # file_names = batch["file_name"]
 
         out = self.forward(images)
+        loss_localization, loss_classification, loss_landmarks = self.loss(out, targets)
 
-        location, confidence, _ = out
+        total_loss = (
+            self.loss_factors["loc"] * loss_localization
+            + self.loss_factors["cls"] * loss_classification
+            + self.loss_factors["ldm"] * loss_landmarks
+        )
 
-        confidence = F.softmax(confidence, dim=-1)
-        batch_size = location.shape[0]
+        self.log("val_classification", loss_classification, on_step=True, on_epoch=True, logger=True, prog_bar=True)
+        self.log("val_localization", loss_localization, on_step=True, on_epoch=True, logger=True, prog_bar=True)
+        self.log("val_landmarks", loss_landmarks, on_step=True, on_epoch=True, logger=True, prog_bar=True)
+        self.log("val_loss", total_loss, on_step=True, on_epoch=True, logger=True, prog_bar=True)
 
-        predictions_coco: List[Dict[str, Any]] = []
+        # location, confidence, _ = out
 
-        scale = torch.from_numpy(np.tile([image_width, image_height], 2)).to(location.device)
+        # confidence = F.softmax(confidence, dim=-1)
+        # batch_size = location.shape[0]
+        
 
-        for batch_id in range(batch_size):
-            boxes = decode(
-                location.data[batch_id], self.priors.to(images.device), self.config["variance"]
-            )
-            scores = confidence[batch_id][:, 1]
+        #predictions_coco: List[Dict[str, Any]] = []
 
-            valid_index = torch.where(scores > 0.1)[0]
-            boxes = boxes[valid_index]
-            scores = scores[valid_index]
+        #scale = torch.from_numpy(np.tile([image_width, image_height], 2)).to(location.device)
 
-            boxes *= scale
+        # for batch_id in range(batch_size):
+        #     boxes = decode(
+        #         location.data[batch_id], self.priors.to(images.device), self.config["variance"]
+        #     )
+        #     scores = confidence[batch_id][:, 1]
 
-            # do NMS
-            keep = nms(boxes, scores, self.config["iou_threshold"])
-            boxes = boxes[keep, :].cpu().numpy()
+        #     valid_index = torch.where(scores > 0.1)[0]
+        #     boxes = boxes[valid_index]
+        #     scores = scores[valid_index]
 
-            if boxes.shape[0] == 0:
-                continue
+        #     boxes *= scale
 
-            scores = scores[keep].cpu().numpy()
+        #     # do NMS
+        #     keep = nms(boxes, scores, self.config["iou_threshold"])
+        #     boxes = boxes[keep, :].cpu().numpy()
 
-            file_name = file_names[batch_id]
+        #     if boxes.shape[0] == 0:
+        #         continue
 
-            for box_id, bbox in enumerate(boxes):
-                x_min, y_min, x_max, y_max = bbox
+        #     scores = scores[keep].cpu().numpy()
 
-                x_min = np.clip(x_min, 0, x_max - 1)
-                y_min = np.clip(y_min, 0, y_max - 1)
+        #     file_name = file_names[batch_id]
 
-                predictions_coco += [
-                    {
-                        "id": str(hash(f"{file_name}_{box_id}")),
-                        "image_id": file_name,
-                        "category_id": 1,
-                        "bbox": [x_min, y_min, x_max - x_min, y_max - y_min],
-                        "score": scores[box_id],
-                    }
-                ]
+        #     for box_id, bbox in enumerate(boxes):
+        #         x_min, y_min, x_max, y_max = bbox
 
-        gt_coco: List[Dict[str, Any]] = []
+        #         x_min = np.clip(x_min, 0, x_max - 1)
+        #         y_min = np.clip(y_min, 0, y_max - 1)
 
-        for batch_id, annotation_list in enumerate(annotations):
-            for annotation in annotation_list:
-                x_min, y_min, x_max, y_max = annotation[:4]
-                file_name = file_names[batch_id]
+        #         predictions_coco += [
+        #             {
+        #                 "id": str(hash(f"{file_name}_{box_id}")),
+        #                 "image_id": file_name,
+        #                 "category_id": 1,
+        #                 "bbox": [x_min, y_min, x_max - x_min, y_max - y_min],
+        #                 "score": scores[box_id],
+        #             }
+        #         ]
 
-                gt_coco += [
-                    {
-                        "id": str(hash(f"{file_name}_{batch_id}")),
-                        "image_id": file_name,
-                        "category_id": 1,
-                        "bbox": [
-                            x_min.item() * image_width,
-                            y_min.item() * image_height,
-                            (x_max - x_min).item() * image_width,
-                            (y_max - y_min).item() * image_height,
-                        ],
-                    }
-                ]
-        return OrderedDict({"predictions": predictions_coco, "gt": gt_coco})
+        # gt_coco: List[Dict[str, Any]] = []
+
+        # for batch_id, annotation_list in enumerate(annotations):
+        #     for annotation in annotation_list:
+        #         x_min, y_min, x_max, y_max = annotation[:4]
+        #         file_name = file_names[batch_id]
+
+        #         gt_coco += [
+        #             {
+        #                 "id": str(hash(f"{file_name}_{batch_id}")),
+        #                 "image_id": file_name,
+        #                 "category_id": 1,
+        #                 "bbox": [
+        #                     x_min.item() * image_width,
+        #                     y_min.item() * image_height,
+        #                     (x_max - x_min).item() * image_width,
+        #                     (y_max - y_min).item() * image_height,
+        #                 ],
+        #             }
+        #         ]
+        # return OrderedDict({"predictions": predictions_coco, "gt": gt_coco})
+
+    def validation_epoch_end(self, outputs: List) -> None:
+        result_predictions: List[dict] = []
+        result_gt: List[dict] = []
+
+        for output in outputs:
+            result_predictions += output["predictions"]
+            result_gt += output["gt"]
+
+        _, _, average_precision = recall_precision(result_gt, result_predictions, 0.5)
+
+        self.log("val_precision", average_precision, on_step=False, on_epoch=True, logger=True)
 
 class FaceDataModule(pl.LightningDataModule):
     """doc here"""
@@ -301,7 +328,7 @@ def main() -> None:
         "mean_pix_val" : [104.0, 117.0, 123.0],
         "aug_cfg" : aug_config,
         "scheduler" : {"T_0": 10, "T_mult": 2},
-        "batch_size" : 10,
+        "batch_size" : 128,
         "variance": [0.1, 0.2],
         "iou_threshold" : 0.5,
         "seed" : 43
