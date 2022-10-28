@@ -42,19 +42,19 @@ def download_data(
         if unzip:
             shutil.unpack_archive(outp, path_to_data / "WIDER_labels")
 
-
-parser = argparse.ArgumentParser()
-parser.add_argument(
-    "-ts", "--train_set", type=bool, help="Download the train_set", default=True
-)
-parser.add_argument(
-    "-vs", "--val_set", type=bool, help="Download the val_set", default=True
-)
-parser.add_argument(
-    "-lbl", "--labels", type=bool, help="Download the annotations", default=True
-)
-parser.add_argument(
-    "-z", "--unzip", type=bool, help="unzip all the downloaded files", default=True
-)
-args = parser.parse_args()
-download_data(args.train_set, args.val_set, args.labels, args.unzip)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-ts", "--train_set", type=bool, help="Download the train_set", default=True
+    )
+    parser.add_argument(
+        "-vs", "--val_set", type=bool, help="Download the val_set", default=True
+    )
+    parser.add_argument(
+        "-lbl", "--labels", type=bool, help="Download the annotations", default=True
+    )
+    parser.add_argument(
+        "-z", "--unzip", type=bool, help="unzip all the downloaded files", default=True
+    )
+    args = parser.parse_args()
+    download_data(args.train_set, args.val_set, args.labels, args.unzip)
