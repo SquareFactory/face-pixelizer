@@ -34,7 +34,7 @@ class FacePixelizer:
 
         height, width = input_size, input_size
 
-        self.model = retinaface({"weights_path": weights_path})
+        self.model = retinaface({"weights_path": weights_path}, landmarks=False)
         self.model.eval()
         dump_inputs = torch.randn(1, 3, height, width)
         self.model = torch.jit.trace(self.model, dump_inputs)
