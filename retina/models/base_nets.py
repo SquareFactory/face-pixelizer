@@ -100,7 +100,7 @@ class FPN(nn.Module):
 
     def forward(self, inputs):
         # names = list(input.keys())
-        inputs = list(inputs.values())
+        inputs = list(inputs.values()) #put this line back for mobilenetv1
 
         output1 = self.output1(inputs[0])
         output2 = self.output2(inputs[1])
@@ -145,7 +145,7 @@ class MobileNetV1(nn.Module):
             conv_dw(256, 256, 1),  # 241 + 64 = 301
         )
         self.avg = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(256, 1000)
+        #self.fc = nn.Linear(256, 1000)
 
     def forward(self, x):
         x = self.stage1(x)

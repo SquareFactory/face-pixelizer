@@ -1,7 +1,5 @@
 from pathlib import Path
-from typing import Tuple, Callable, Union, Any, Dict
-from collections import OrderedDict
-
+from typing import Tuple, Callable, Union, Any, Dict, List
 import argparse
 import albumentations as A
 import cv2
@@ -9,11 +7,13 @@ import pytorch_lightning as pl
 import torch.nn.functional as F
 import torch
 from torch.utils.data import DataLoader
+from torchmetrics.detection.mean_ap import MeanAveragePrecision
 import numpy as np
 #from albumentations.pytorch import ToTensorV2
 from albumentations.core.serialization import from_dict
 import yaml 
 from torchvision.ops import nms
+# from retina.utils.utils import clip_all_boxes
 # from utils.data_augmentation import Preproc
 # from utils.data_download import download_data
 # from utils.multibox_loss import MultiBoxLoss
@@ -24,7 +24,7 @@ from retinaface.data_augment import Preproc
 from retinaface.dataset import FaceDetectionDataset, detection_collate
 from retinaface.multibox_loss import MultiBoxLoss
 from retinaface.prior_box import priorbox
-from retina import download_data, retinaface
+from retina import download_data, retinaface, clip_all_boxes
 #from ..models.custom_retinaface import retinaface
 
 TRAIN_IMAGE_PATH = Path("data/WIDER_train/WIDER_train/images")
@@ -67,6 +67,9 @@ class RetinaFace(pl.LightningModule):
             priors=self.priors,
         )
 
+        self.mAP = MeanAveragePrecision(iou_thresholds=[self.config["iou_threshold"]]).to('cuda')
+        self.epoch_counter = 0
+
     def forward(self, batch: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore
         return self.model(batch)
 
@@ -88,7 +91,7 @@ class RetinaFace(pl.LightningModule):
     def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int):  # type: ignore
         images = batch["image"]
         targets = batch["annotation"]
-
+        
         out = self.forward(images)
 
         loss_localization, loss_classification, loss_landmarks = self.loss(out, targets)
@@ -108,83 +111,142 @@ class RetinaFace(pl.LightningModule):
 
     def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int):  # type: ignore
         images = batch["image"]
+        targets = batch["annotation"]
+        file_names = batch["file_name"]
+
 
         image_height = images.shape[2]
         image_width = images.shape[3]
-        annotations = batch["annotation"]
-        file_names = batch["file_name"]
-
+        # annotations = batch["annotation"]
         out = self.forward(images)
+        loss_localization, loss_classification, _ = self.loss(out, targets)
 
+        total_loss = (
+            self.loss_factors["loc"] * loss_localization
+            + self.loss_factors["cls"] * loss_classification
+        )
+
+        self.log("val_classification", loss_classification, on_step=True, on_epoch=True, logger=True, prog_bar=True)
+        self.log("val_localization", loss_localization, on_step=True, on_epoch=True, logger=True, prog_bar=True)
+        #self.log("val_landmarks", loss_landmarks, on_step=True, on_epoch=True, logger=True, prog_bar=True)
+        self.log("val_loss", total_loss, on_step=True, on_epoch=True, logger=True, prog_bar=True)
+
+        # Computing mAP to track progress
         location, confidence, _ = out
 
         confidence = F.softmax(confidence, dim=-1)
         batch_size = location.shape[0]
+        
 
-        predictions_coco: List[Dict[str, Any]] = []
+        predictions: List[Dict[str, Any]] = []
+        gtruth : List[Dict[str, Any]] = []
 
         scale = torch.from_numpy(np.tile([image_width, image_height], 2)).to(location.device)
+        priors_cuda = self.priors.to(images.device)
 
         for batch_id in range(batch_size):
             boxes = decode(
-                location.data[batch_id], self.priors.to(images.device), self.config["variance"]
+                location.data[batch_id], priors_cuda, self.config["variance"]
             )
             scores = confidence[batch_id][:, 1]
 
             valid_index = torch.where(scores > 0.1)[0]
+
             boxes = boxes[valid_index]
             scores = scores[valid_index]
-
             boxes *= scale
+            boxes = clip_all_boxes(boxes,(image_height, image_width),in_place=False).to(images.device)
 
             # do NMS
-            keep = nms(boxes, scores, self.config["iou_threshold"])
-            boxes = boxes[keep, :].cpu().numpy()
-
+            if self.global_step % 10000 == 0:
+                print(f"Before NMS {len(boxes)}")
+            
+            keep = nms(boxes, scores, self.config["nms_threshold"])
+            boxes = boxes[keep, :]
             if boxes.shape[0] == 0:
                 continue
+            
+            if self.current_epoch % 10 == 0:
+                print(f"After NMS {len(boxes)}")
 
-            scores = scores[keep].cpu().numpy()
+            scores = scores[keep]
+            target_boxes = targets[batch_id][:,:4]*scale
+            predictions.append(
+                {
+                    "boxes":boxes,
+                    "scores":scores,
+                    "labels":torch.ones(len(scores), dtype=torch.int, device = images.device)
+                }
+            )
 
-            file_name = file_names[batch_id]
+            
+            gtruth.append(
+                {
+                    "boxes": target_boxes,
+                    "labels" : torch.ones(len(target_boxes), dtype=torch.int, device = images.device)  
+                }
+            )
+        self.mAP.update(predictions,gtruth)
+        return total_loss
+                # file_name = file_names[batch_id]
 
-            for box_id, bbox in enumerate(boxes):
-                x_min, y_min, x_max, y_max = bbox
+            # for box_id, bbox in enumerate(boxes):
+            #     x_min, y_min, x_max, y_max = bbox
 
-                x_min = np.clip(x_min, 0, x_max - 1)
-                y_min = np.clip(y_min, 0, y_max - 1)
+            #     x_min = np.clip(x_min, 0, x_max - 1)
+            #     y_min = np.clip(y_min, 0, y_max - 1)
 
-                predictions_coco += [
-                    {
-                        "id": str(hash(f"{file_name}_{box_id}")),
-                        "image_id": file_name,
-                        "category_id": 1,
-                        "bbox": [x_min, y_min, x_max - x_min, y_max - y_min],
-                        "score": scores[box_id],
-                    }
-                ]
+            #     predictions_coco += [
+            #         {
+            #             #"id": str(hash(f"{file_name}_{box_id}")),
+            #             #"image_id": file_name,
+            #             "category_id": 1,
+            #             "bbox": [x_min, y_min, x_max, y_max],
+            #             "score": scores[box_id],
+            #         }
+            #     ]
 
-        gt_coco: List[Dict[str, Any]] = []
+        # gt_coco: List[Dict[str, Any]] = []
 
-        for batch_id, annotation_list in enumerate(annotations):
-            for annotation in annotation_list:
-                x_min, y_min, x_max, y_max = annotation[:4]
-                file_name = file_names[batch_id]
+        # for batch_id, annotation_list in enumerate(annotations):
+        #     for annotation in annotation_list:
+        #         x_min, y_min, x_max, y_max = annotation[:4]
+        #         file_name = file_names[batch_id]
 
-                gt_coco += [
-                    {
-                        "id": str(hash(f"{file_name}_{batch_id}")),
-                        "image_id": file_name,
-                        "category_id": 1,
-                        "bbox": [
-                            x_min.item() * image_width,
-                            y_min.item() * image_height,
-                            (x_max - x_min).item() * image_width,
-                            (y_max - y_min).item() * image_height,
-                        ],
-                    }
-                ]
-        return OrderedDict({"predictions": predictions_coco, "gt": gt_coco})
+        #         gt_coco += [
+        #             {
+        #                 "id": str(hash(f"{file_name}_{batch_id}")),
+        #                 "image_id": file_name,
+        #                 "category_id": 1,
+        #                 "bbox": [
+        #                     x_min.item() * image_width,
+        #                     y_min.item() * image_height,
+        #                     (x_max - x_min).item() * image_width,
+        #                     (y_max - y_min).item() * image_height,
+        #                 ],
+        #             }
+        #         ]
+        # return OrderedDict({"predictions": predictions_coco, "gt": gt_coco})
+
+    def validation_epoch_end(self, outputs: List) -> None:
+    
+        if self.current_epoch > 60:
+            print('*********************************************beforemap****************************************************')
+            map_value = self.mAP.compute()
+            self.log("map", map_value, on_step=False, on_epoch=True, logger=True)
+            print('*********************************************aftermap****************************************************')
+        else:
+            self.mAP.reset()
+        # result_predictions: List[dict] = []
+        # result_gt: List[dict] = []
+
+        # for output in outputs:
+        #     result_predictions += output["predictions"]
+        #     result_gt += output["gt"]
+
+        # _, _, average_precision = recall_precision(result_gt, result_predictions, 0.5)
+
+        
 
 class FaceDataModule(pl.LightningDataModule):
     """doc here"""
@@ -282,6 +344,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
     #arg("-c", "--config_path", type=Path, help="Path to the config.", required=True)
+    arg("-w", "--weights_path", type=str, help="path to the networks weights", default = None)
     arg("-e", "--epochs", type=int, help="the number of epoches", default=10)
     #arg("-b", "--batch_size", type=int, help="the batch size of the trainloaders", default=6)
     args =  parser.parse_args()
@@ -292,18 +355,20 @@ def main() -> None:
         aug_config = yaml.load(f, Loader=yaml.SafeLoader)
     
     config = {
+        "weights_path": args.weights_path,
         "image_size" : (512,512),
         "loss_factors" : {"loc": 2, "cls" : 1, "ldm": 1},
         "lr" : 0.001,
         "weight_decay" : 0.0001,
         "momentum" : 0.9,
-        "num_workers": 2,
+        "num_workers": 16,
         "mean_pix_val" : [104.0, 117.0, 123.0],
         "aug_cfg" : aug_config,
         "scheduler" : {"T_0": 10, "T_mult": 2},
-        "batch_size" : 10,
+        "batch_size" : 16,
         "variance": [0.1, 0.2],
         "iou_threshold" : 0.5,
+        "nms_threshold" : 0.3,
         "seed" : 43
     }
     pl.trainer.seed_everything(config["seed"])
