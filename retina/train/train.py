@@ -61,7 +61,7 @@ class RetinaFace(pl.LightningModule):
             prior_for_matching=True,
             bkg_label=0,
             neg_mining=True,
-            neg_pos=7,
+            neg_pos=config['neg_pos_ratio'],
             neg_overlap=0.35,
             encode_target=False,
             priors=self.priors,
@@ -158,16 +158,12 @@ class RetinaFace(pl.LightningModule):
             boxes = clip_all_boxes(boxes,(image_height, image_width),in_place=False).to(images.device)
 
             # do NMS
-            if self.global_step % 10000 == 0:
-                print(f"Before NMS {len(boxes)}")
             
             keep = nms(boxes, scores, self.config["nms_threshold"])
             boxes = boxes[keep, :]
             if boxes.shape[0] == 0:
                 continue
             
-            if self.current_epoch % 10 == 0:
-                print(f"After NMS {len(boxes)}")
 
             scores = scores[keep]
             target_boxes = targets[batch_id][:,:4]*scale
@@ -357,7 +353,7 @@ def main() -> None:
     config = {
         "weights_path": args.weights_path,
         "image_size" : (512,512),
-        "loss_factors" : {"loc": 2, "cls" : 1, "ldm": 1},
+        "loss_factors" : {"loc": .25, "cls" : .1, "ldm": .01},
         "lr" : 0.001,
         "weight_decay" : 0.0001,
         "momentum" : 0.9,
@@ -369,6 +365,7 @@ def main() -> None:
         "variance": [0.1, 0.2],
         "iou_threshold" : 0.5,
         "nms_threshold" : 0.3,
+        "neg_pos_ratio" : 3,
         "seed" : 43
     }
     pl.trainer.seed_everything(config["seed"])
