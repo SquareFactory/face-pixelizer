@@ -100,7 +100,7 @@ class FPN(nn.Module):
 
     def forward(self, inputs):
         # names = list(input.keys())
-        inputs = list(inputs.values())
+        inputs = list(inputs.values()) #put this line back for mobilenetv1
 
         output1 = self.output1(inputs[0])
         output2 = self.output2(inputs[1])

@@ -4,6 +4,7 @@ from math import ceil
 import cv2
 import numpy as np
 import torch
+from copy import deepcopy
 
 
 def get_prior_box(
@@ -120,3 +121,18 @@ def pixelize(img, blocks=6):
             (B, G, R) = [int(x) for x in cv2.mean(roi)[:3]]
             cv2.rectangle(img, (x_start, y_start), (x_end, y_end), (B, G, R), -1)
     return img
+
+def clip_all_boxes(boxes, img_dim, in_place = False):
+    if not in_place:
+        boxes = deepcopy(boxes).cpu().numpy()
+    
+    h, w = img_dim
+    boxes[np.where(boxes[:,0]<0), 0] = 0
+    boxes[np.where(boxes[:,1]<0), 1] = 0
+    boxes[np.where(boxes[:,2]>h-1), 2] = h-1
+    boxes[np.where(boxes[:,3]>w-1), 3] = w-1
+    x_max_smallerthan_min = np.where(boxes[:,0]>boxes[:,2]-1)
+    y_max_smallerthan_min = np.where(boxes[:,1]>boxes[:,3]-1)
+    boxes[x_max_smallerthan_min ,0] = boxes[x_max_smallerthan_min ,2] -1
+    boxes[y_max_smallerthan_min ,1] = boxes[y_max_smallerthan_min ,3] -1
+    return torch.tensor(boxes)
