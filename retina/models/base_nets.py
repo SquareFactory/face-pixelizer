@@ -145,7 +145,7 @@ class MobileNetV1(nn.Module):
             conv_dw(256, 256, 1),  # 241 + 64 = 301
         )
         self.avg = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(256, 1000)
+        #self.fc = nn.Linear(256, 1000)
 
     def forward(self, x):
         x = self.stage1(x)

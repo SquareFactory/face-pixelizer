@@ -1,4 +1,6 @@
 from typing import Dict
+from pathlib import Path
+
 
 import torch
 import torch.nn as nn
@@ -68,6 +70,8 @@ class RetinaFace(nn.Module):
         super(RetinaFace, self).__init__()
 
         backbone = MobileNetV1()
+        if (Path("MobileNetv1.pth").exists()):
+            backbone.load_state_dict(torch.load("MobileNetv1.pth"))
         return_layers = {"stage1": 1, "stage2": 2, "stage3": 3}
         in_channels = [32 * 2, 32 * 4, 32 * 8]
         out_channels = 64
