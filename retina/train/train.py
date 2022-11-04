@@ -9,10 +9,13 @@ import torch
 from torch.utils.data import DataLoader
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 import numpy as np
+import time
 #from albumentations.pytorch import ToTensorV2
 from albumentations.core.serialization import from_dict
 import yaml 
 from torchvision.ops import nms
+
+import json
 # from retina.utils.utils import clip_all_boxes
 # from utils.data_augmentation import Preproc
 # from utils.data_download import download_data
@@ -67,8 +70,13 @@ class RetinaFace(pl.LightningModule):
             priors=self.priors,
         )
 
-        self.mAP = MeanAveragePrecision(iou_thresholds=[self.config["iou_threshold"]]).to('cuda')
-        self.epoch_counter = 0
+        self.mAP = MeanAveragePrecision(
+            iou_thresholds = list(np.arange(5,10)/10),
+            rec_thresholds = list(np.arange(11)/10),
+            max_detection_thresholds = [110]
+            )
+        
+        self.mAP_epoch_interval = config['mAP_epoch_interval'] # mAP takes a lot of time to compute, so better to not dot it everytime
 
     def forward(self, batch: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore
         return self.model(batch)
@@ -91,20 +99,28 @@ class RetinaFace(pl.LightningModule):
     def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int):  # type: ignore
         images = batch["image"]
         targets = batch["annotation"]
-        
         out = self.forward(images)
-
+        
+        # Debugging stuff
+        #torch.save(batch, "train_batch.ptt")
+        #torch.save(out, "ref_network_output.ptt")
+        #assert 0
+        
+        
         loss_localization, loss_classification, loss_landmarks = self.loss(out, targets)
-
+        # print(f"{'*'*100}\n")
+        # print(targets)
+        # print(loss_localization, loss_classification, loss_landmarks)
+        # print(f"{'*'*100}\n")
         total_loss = (
             self.loss_factors["loc"] * loss_localization
             + self.loss_factors["cls"] * loss_classification
             + self.loss_factors["ldm"] * loss_landmarks
         )
         
-        self.log("train_classification", loss_classification, on_step=True, on_epoch=True, logger=True, prog_bar=True)
-        self.log("train_localization", loss_localization, on_step=True, on_epoch=True, logger=True, prog_bar=True)
-        self.log("train_landmarks", loss_landmarks, on_step=True, on_epoch=True, logger=True, prog_bar=True)
+        #self.log("train_classification", loss_classification, on_step=True, on_epoch=True, logger=True, prog_bar=True)
+        #self.log("train_localization", loss_localization, on_step=True, on_epoch=True, logger=True, prog_bar=True)
+        #self.log("train_landmarks", loss_landmarks, on_step=True, on_epoch=True, logger=True, prog_bar=True)
         self.log("train_loss", total_loss, on_step=True, on_epoch=True, logger=True, prog_bar=True)
         #self.log("lr", self._get_current_lr(), on_step=True, on_epoch=True, logger=True, prog_bar=True)
         return total_loss
@@ -114,26 +130,26 @@ class RetinaFace(pl.LightningModule):
         targets = batch["annotation"]
         file_names = batch["file_name"]
 
-
+        for t in targets:
+            t[:,14] = -1
+        #print(targets[0])
         image_height = images.shape[2]
         image_width = images.shape[3]
         # annotations = batch["annotation"]
         out = self.forward(images)
+        
         loss_localization, loss_classification, _ = self.loss(out, targets)
 
         total_loss = (
             self.loss_factors["loc"] * loss_localization
             + self.loss_factors["cls"] * loss_classification
         )
-
-        self.log("val_classification", loss_classification, on_step=True, on_epoch=True, logger=True, prog_bar=True)
-        self.log("val_localization", loss_localization, on_step=True, on_epoch=True, logger=True, prog_bar=True)
+        #self.log("val_classification", loss_classification, on_step=True, on_epoch=True, logger=True, prog_bar=True)
+        #self.log("val_localization", loss_localization, on_step=True, on_epoch=True, logger=True, prog_bar=True)
         #self.log("val_landmarks", loss_landmarks, on_step=True, on_epoch=True, logger=True, prog_bar=True)
-        self.log("val_loss", total_loss, on_step=True, on_epoch=True, logger=True, prog_bar=True)
 
         # Computing mAP to track progress
         location, confidence, _ = out
-
         confidence = F.softmax(confidence, dim=-1)
         batch_size = location.shape[0]
         
@@ -141,7 +157,7 @@ class RetinaFace(pl.LightningModule):
         predictions: List[Dict[str, Any]] = []
         gtruth : List[Dict[str, Any]] = []
 
-        scale = torch.from_numpy(np.tile([image_width, image_height], 2)).to(location.device)
+        scale = torch.from_numpy(np.tile([image_height, image_width], 2)).to(location.device)
         priors_cuda = self.priors.to(images.device)
 
         for batch_id in range(batch_size):
@@ -149,8 +165,7 @@ class RetinaFace(pl.LightningModule):
                 location.data[batch_id], priors_cuda, self.config["variance"]
             )
             scores = confidence[batch_id][:, 1]
-
-            valid_index = torch.where(scores > 0.1)[0]
+            valid_index = torch.where(scores > self.config["detection_thres_for_mAP"])[0]
 
             boxes = boxes[valid_index]
             scores = scores[valid_index]
@@ -158,15 +173,25 @@ class RetinaFace(pl.LightningModule):
             boxes = clip_all_boxes(boxes,(image_height, image_width),in_place=False).to(images.device)
 
             # do NMS
+            # if self.global_step % 10000 == 0:
+            #     print(f"Before NMS {len(boxes)}")
             
             keep = nms(boxes, scores, self.config["nms_threshold"])
             boxes = boxes[keep, :]
             if boxes.shape[0] == 0:
                 continue
             
+            # if self.current_epoch % 10 == 0:
+            #     print(f"After NMS {len(boxes)}")
 
             scores = scores[keep]
+
             target_boxes = targets[batch_id][:,:4]*scale
+            
+            #print(file_names[batch_id], targets[batch_id][:,:4], scale)
+            
+            #print(file_names[batch_id], boxes[:30], scores[:30], target_boxes[:30])
+            
             predictions.append(
                 {
                     "boxes":boxes,
@@ -182,65 +207,32 @@ class RetinaFace(pl.LightningModule):
                     "labels" : torch.ones(len(target_boxes), dtype=torch.int, device = images.device)  
                 }
             )
-        self.mAP.update(predictions,gtruth)
-        return total_loss
-                # file_name = file_names[batch_id]
+        if(self.current_epoch % self.mAP_epoch_interval == 0):
+            self.mAP.update(predictions,gtruth)
+        return total_loss.cpu().detach()
 
-            # for box_id, bbox in enumerate(boxes):
-            #     x_min, y_min, x_max, y_max = bbox
-
-            #     x_min = np.clip(x_min, 0, x_max - 1)
-            #     y_min = np.clip(y_min, 0, y_max - 1)
-
-            #     predictions_coco += [
-            #         {
-            #             #"id": str(hash(f"{file_name}_{box_id}")),
-            #             #"image_id": file_name,
-            #             "category_id": 1,
-            #             "bbox": [x_min, y_min, x_max, y_max],
-            #             "score": scores[box_id],
-            #         }
-            #     ]
-
-        # gt_coco: List[Dict[str, Any]] = []
-
-        # for batch_id, annotation_list in enumerate(annotations):
-        #     for annotation in annotation_list:
-        #         x_min, y_min, x_max, y_max = annotation[:4]
-        #         file_name = file_names[batch_id]
-
-        #         gt_coco += [
-        #             {
-        #                 "id": str(hash(f"{file_name}_{batch_id}")),
-        #                 "image_id": file_name,
-        #                 "category_id": 1,
-        #                 "bbox": [
-        #                     x_min.item() * image_width,
-        #                     y_min.item() * image_height,
-        #                     (x_max - x_min).item() * image_width,
-        #                     (y_max - y_min).item() * image_height,
-        #                 ],
-        #             }
-        #         ]
-        # return OrderedDict({"predictions": predictions_coco, "gt": gt_coco})
 
     def validation_epoch_end(self, outputs: List) -> None:
-    
-        if self.current_epoch > 60:
-            print('*********************************************beforemap****************************************************')
-            map_value = self.mAP.compute()
-            self.log("map", map_value, on_step=False, on_epoch=True, logger=True)
-            print('*********************************************aftermap****************************************************')
+        mean_val_loss = np.mean(outputs)
+        self.log("val_loss", mean_val_loss, on_step=False, on_epoch=True, logger=True, prog_bar=True)
+
+        if(self.current_epoch % self.mAP_epoch_interval == 0):
+            
+            start = time.time()
+            all_map_value = self.mAP.compute()
+            end = time.time()
+
+            all_map_value["computation_time"] = end-start
+            torch.save(all_map_value, f"lightning_logs/maps/map_value@epoch_{self.current_epoch}.ptt")
+            map_value = all_map_value['map']
+            
+            print(f"Last mAP calculated in {end-start:.2f} seconds")
+            
+            self.log("map", map_value, on_step=False, on_epoch=True, logger=True, prog_bar=True)
+            self.log("map_time", end-start, on_step=False, on_epoch=True, logger=True, prog_bar=True)
         else:
-            self.mAP.reset()
-        # result_predictions: List[dict] = []
-        # result_gt: List[dict] = []
+            self.mAP.reset() #probably useless, we don't update it anymore in other epochs
 
-        # for output in outputs:
-        #     result_predictions += output["predictions"]
-        #     result_gt += output["gt"]
-
-        # _, _, average_precision = recall_precision(result_gt, result_predictions, 0.5)
 
         
 
@@ -267,24 +259,10 @@ class FaceDataModule(pl.LightningDataModule):
         self.num_workers = config["num_workers"]
         self.image_size = config["image_size"]
         self.aug_cfg = config["aug_cfg"]
-        self.num_workers = config["num_workers"]
 
         # input_size = max(self.image_size)
         # quick_means = config["mean_pix_val"]  # TODO deal with this ugly impl.
 
-        # self.transform = A.Compose(
-        #     [
-        #         A.LongestMaxSize(max_size=input_size),
-        #         A.PadIfNeeded(
-        #             min_height=input_size,
-        #             min_width=input_size,
-        #             border_mode=cv2.BORDER_CONSTANT,
-        #             value=0,
-        #         ),
-        #         A.Normalize(mean=quick_means, std=[1, 1, 1]),
-        #         ToTensorV2(),
-        #     ]
-        # )
 
     def setup(self, stage=None) -> None:  # type: ignore
         # check if dataset exists
@@ -357,16 +335,18 @@ def main() -> None:
         "lr" : 0.001,
         "weight_decay" : 0.0001,
         "momentum" : 0.9,
-        "num_workers": 16,
+        "num_workers": 4,
         "mean_pix_val" : [104.0, 117.0, 123.0],
         "aug_cfg" : aug_config,
         "scheduler" : {"T_0": 10, "T_mult": 2},
-        "batch_size" : 16,
+        "batch_size" : 12,
         "variance": [0.1, 0.2],
         "iou_threshold" : 0.5,
         "nms_threshold" : 0.3,
         "neg_pos_ratio" : 3,
-        "seed" : 43
+        "seed" : 43,
+        "detection_thres_for_mAP" : .4,
+        "mAP_epoch_interval" : 5,
     }
     pl.trainer.seed_everything(config["seed"])
 
