@@ -2,7 +2,6 @@ from archipel.workers.worker import ImagesToImagesWorker
 
 from face_pixelizer import FacePixelizer
 
-
 __task_class_name__ = "ArchipelFacePixelizer"
 
 
@@ -18,7 +17,7 @@ class ArchipelFacePixelizer(ImagesToImagesWorker):
             "--score-threshold",
             default=0.4,
             type=float,
-            help="Discords all results with confidence score < score-threshold",
+            help="Discards all results with confidence score < score-threshold",
         )
         parent_parser.add_argument(
             "--nms-threshold",
