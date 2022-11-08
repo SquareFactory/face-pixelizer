@@ -324,7 +324,7 @@ class FaceDataModule(pl.LightningDataModule):
 def main() -> None:
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
-    # arg("-c", "--config_path", type=Path, help="Path to the config.", required=True)
+
     arg(
         "-w",
         "--weights_path",
@@ -333,16 +333,15 @@ def main() -> None:
         default=None,
     )
     arg("-e", "--epochs", type=int, help="the number of epochs", default=10)
-    arg(
-        "-c", "--config", type=str, help="path to config yml file", default="config.yml"
-    )
-    # arg("-b", "--batch_size", type=int, help="the batch size of the trainloaders", default=6)
+    arg("-c", "--config", type=str, help="path to config yml", default="config.yml")
+
     args = parser.parse_args()
 
     cfg = Path(args.config)
     with cfg.open() as f:
         config = yaml.load(f, Loader=yaml.SafeLoader)
-    # add path given in args to config
+
+    # add to config path given in args
     config["weights_path"] = args.weights_path
 
     pl.trainer.seed_everything(config["seed"])
@@ -361,7 +360,7 @@ def main() -> None:
         benchmark=True,
         precision=16 if gpu_count > 0 else 32,
         sync_batchnorm=True,
-        # callbacks=[object_from_dict(config.checkpoint_callback)]
+        callbacks=pl.callbacks.ModelCheckpoint(**config["checkpoint_callback"]),
     )
     trainer.fit(pipeline, dm)
 
