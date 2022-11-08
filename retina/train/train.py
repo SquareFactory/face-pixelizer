@@ -1,34 +1,24 @@
-from pathlib import Path
-from typing import Tuple, Callable, Union, Any, Dict, List
 import argparse
-import albumentations as A
-import cv2
-import pytorch_lightning as pl
-import torch.nn.functional as F
-import torch
-from torch.utils.data import DataLoader
-from torchmetrics.detection.mean_ap import MeanAveragePrecision
-import numpy as np
 import time
-#from albumentations.pytorch import ToTensorV2
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
+
+import numpy as np
+import pytorch_lightning as pl
+import torch
+import torch.nn.functional as F
+import yaml
 from albumentations.core.serialization import from_dict
-import yaml 
-from torchvision.ops import nms
-
-import json
-# from retina.utils.utils import clip_all_boxes
-# from utils.data_augmentation import Preproc
-# from utils.data_download import download_data
-# from utils.multibox_loss import MultiBoxLoss
-# from utils.utils import get_prior_box
-
 from retinaface.box_utils import decode
 from retinaface.data_augment import Preproc
 from retinaface.dataset import FaceDetectionDataset, detection_collate
 from retinaface.multibox_loss import MultiBoxLoss
 from retinaface.prior_box import priorbox
-from retina import download_data, retinaface, clip_all_boxes
-#from ..models.custom_retinaface import retinaface
+from torch.utils.data import DataLoader
+from torchmetrics.detection.mean_ap import MeanAveragePrecision
+from torchvision.ops import nms
+
+from retina import clip_all_boxes, download_data, retinaface
 
 TRAIN_IMAGE_PATH = Path("data/WIDER_train/WIDER_train/images")
 VAL_IMAGE_PATH = Path("data/WIDER_val/WIDER_val/images")
@@ -45,9 +35,9 @@ class RetinaFace(pl.LightningModule):
         :param phase: train or test.
         """
         super(RetinaFace, self).__init__()
-        self.config = config  # <TODO> see for what it is useful // maybe just pass the path instead of the whole dict?
+        self.config = config
         self.model = retinaface(config)
-        self.image_size = config["image_size"]
+        self.image_size = tuple(config["image_size"])
 
         self.loss_factors = config["loss_factors"]
 
@@ -64,100 +54,91 @@ class RetinaFace(pl.LightningModule):
             prior_for_matching=True,
             bkg_label=0,
             neg_mining=True,
-            neg_pos=config['neg_pos_ratio'],
+            neg_pos=config["neg_pos_ratio"],
             neg_overlap=0.35,
             encode_target=False,
             priors=self.priors,
         )
 
-        self.mAP = MeanAveragePrecision(
-            iou_thresholds = list(np.arange(5,10)/10),
-            rec_thresholds = list(np.arange(11)/10),
-            max_detection_thresholds = [110]
-            )
-        
-        self.mAP_epoch_interval = config['mAP_epoch_interval'] # mAP takes a lot of time to compute, so better to not dot it everytime
+        self.mAP = MeanAveragePrecision()
+
+        self.mAP_epoch_interval = config[
+            "mAP_epoch_interval"
+        ]  # mAP takes a lot of time to compute, so better to not dot it everytime
 
     def forward(self, batch: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore
         return self.model(batch)
 
     def configure_optimizers(self):
-        
+
         optimizer = torch.optim.SGD(
-              lr = self.config['lr'],
-              weight_decay = self.config['weight_decay'],
-              momentum = self.config['momentum'],
-              params=[x for x in self.model.parameters() if x.requires_grad]
+            lr=self.config["lr"],
+            weight_decay=self.config["weight_decay"],
+            momentum=self.config["momentum"],
+            params=[x for x in self.model.parameters() if x.requires_grad],
         )
 
         scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-            T_0 = self.config["scheduler"]["T_0"],
-            T_mult = self.config["scheduler"]["T_mult"],
-            optimizer=optimizer)
+            T_0=self.config["scheduler"]["T_0"],
+            T_mult=self.config["scheduler"]["T_mult"],
+            optimizer=optimizer,
+        )
         return [optimizer], [scheduler]  # type: ignore
-    
+
     def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int):  # type: ignore
         images = batch["image"]
         targets = batch["annotation"]
         out = self.forward(images)
-        
-        # Debugging stuff
-        #torch.save(batch, "train_batch.ptt")
-        #torch.save(out, "ref_network_output.ptt")
-        #assert 0
-        
-        
+
         loss_localization, loss_classification, loss_landmarks = self.loss(out, targets)
-        # print(f"{'*'*100}\n")
-        # print(targets)
-        # print(loss_localization, loss_classification, loss_landmarks)
-        # print(f"{'*'*100}\n")
+
         total_loss = (
             self.loss_factors["loc"] * loss_localization
             + self.loss_factors["cls"] * loss_classification
             + self.loss_factors["ldm"] * loss_landmarks
         )
-        
-        #self.log("train_classification", loss_classification, on_step=True, on_epoch=True, logger=True, prog_bar=True)
-        #self.log("train_localization", loss_localization, on_step=True, on_epoch=True, logger=True, prog_bar=True)
-        #self.log("train_landmarks", loss_landmarks, on_step=True, on_epoch=True, logger=True, prog_bar=True)
-        self.log("train_loss", total_loss, on_step=True, on_epoch=True, logger=True, prog_bar=True)
-        #self.log("lr", self._get_current_lr(), on_step=True, on_epoch=True, logger=True, prog_bar=True)
+
+        self.log(
+            "train_loss",
+            total_loss,
+            on_step=True,
+            on_epoch=True,
+            logger=True,
+            prog_bar=True,
+        )
         return total_loss
 
     def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int):  # type: ignore
         images = batch["image"]
         targets = batch["annotation"]
-        file_names = batch["file_name"]
+        batch["file_name"]
 
         for t in targets:
-            t[:,14] = -1
-        #print(targets[0])
+            t[:, 14] = -1
+        # print(targets[0])
         image_height = images.shape[2]
         image_width = images.shape[3]
         # annotations = batch["annotation"]
         out = self.forward(images)
-        
+
         loss_localization, loss_classification, _ = self.loss(out, targets)
 
         total_loss = (
             self.loss_factors["loc"] * loss_localization
             + self.loss_factors["cls"] * loss_classification
         )
-        #self.log("val_classification", loss_classification, on_step=True, on_epoch=True, logger=True, prog_bar=True)
-        #self.log("val_localization", loss_localization, on_step=True, on_epoch=True, logger=True, prog_bar=True)
-        #self.log("val_landmarks", loss_landmarks, on_step=True, on_epoch=True, logger=True, prog_bar=True)
 
         # Computing mAP to track progress
         location, confidence, _ = out
         confidence = F.softmax(confidence, dim=-1)
         batch_size = location.shape[0]
-        
 
         predictions: List[Dict[str, Any]] = []
-        gtruth : List[Dict[str, Any]] = []
+        gtruth: List[Dict[str, Any]] = []
 
-        scale = torch.from_numpy(np.tile([image_height, image_width], 2)).to(location.device)
+        scale = torch.from_numpy(np.tile([image_height, image_width], 2)).to(
+            location.device
+        )
         priors_cuda = self.priors.to(images.device)
 
         for batch_id in range(batch_size):
@@ -165,76 +146,104 @@ class RetinaFace(pl.LightningModule):
                 location.data[batch_id], priors_cuda, self.config["variance"]
             )
             scores = confidence[batch_id][:, 1]
-            valid_index = torch.where(scores > self.config["detection_thres_for_mAP"])[0]
+            valid_index = torch.where(scores > self.config["detection_thres_for_mAP"])[
+                0
+            ]
 
             boxes = boxes[valid_index]
             scores = scores[valid_index]
             boxes *= scale
-            boxes = clip_all_boxes(boxes,(image_height, image_width),in_place=False).to(images.device)
+            boxes = clip_all_boxes(
+                boxes, (image_height, image_width), in_place=False
+            ).to(images.device)
 
             # do NMS
             # if self.global_step % 10000 == 0:
             #     print(f"Before NMS {len(boxes)}")
-            
+
             keep = nms(boxes, scores, self.config["nms_threshold"])
             boxes = boxes[keep, :]
             if boxes.shape[0] == 0:
                 continue
-            
+
             # if self.current_epoch % 10 == 0:
             #     print(f"After NMS {len(boxes)}")
 
             scores = scores[keep]
 
-            target_boxes = targets[batch_id][:,:4]*scale
-            
-            #print(file_names[batch_id], targets[batch_id][:,:4], scale)
-            
-            #print(file_names[batch_id], boxes[:30], scores[:30], target_boxes[:30])
-            
+            target_boxes = targets[batch_id][:, :4] * scale
+
+            # print(file_names[batch_id], targets[batch_id][:,:4], scale)
+
+            # print(file_names[batch_id], boxes[:30], scores[:30], target_boxes[:30])
+
             predictions.append(
                 {
-                    "boxes":boxes,
-                    "scores":scores,
-                    "labels":torch.ones(len(scores), dtype=torch.int, device = images.device)
+                    "boxes": boxes,
+                    "scores": scores,
+                    "labels": torch.ones(
+                        len(scores), dtype=torch.int, device=images.device
+                    ),
                 }
             )
 
-            
             gtruth.append(
                 {
                     "boxes": target_boxes,
-                    "labels" : torch.ones(len(target_boxes), dtype=torch.int, device = images.device)  
+                    "labels": torch.ones(
+                        len(target_boxes), dtype=torch.int, device=images.device
+                    ),
                 }
             )
-        if(self.current_epoch % self.mAP_epoch_interval == 0):
-            self.mAP.update(predictions,gtruth)
+        if (self.current_epoch + 1) % self.mAP_epoch_interval == 0:
+            self.mAP.update(predictions, gtruth)
         return total_loss.cpu().detach()
-
 
     def validation_epoch_end(self, outputs: List) -> None:
         mean_val_loss = np.mean(outputs)
-        self.log("val_loss", mean_val_loss, on_step=False, on_epoch=True, logger=True, prog_bar=True)
+        self.log(
+            "val_loss",
+            mean_val_loss,
+            on_step=False,
+            on_epoch=True,
+            logger=True,
+            prog_bar=True,
+        )
 
-        if(self.current_epoch % self.mAP_epoch_interval == 0):
-            
+        if (self.current_epoch + 1) % self.mAP_epoch_interval == 0:
+
             start = time.time()
             all_map_value = self.mAP.compute()
             end = time.time()
 
-            all_map_value["computation_time"] = end-start
-            torch.save(all_map_value, f"lightning_logs/maps/map_value@epoch_{self.current_epoch}.ptt")
-            map_value = all_map_value['map']
-            
+            all_map_value["computation_time"] = end - start
+            torch.save(
+                all_map_value,
+                f"lightning_logs/maps/map_value@epoch_{self.current_epoch +1}.ptt",
+            )
+            map_value = all_map_value["map"]
+
             print(f"Last mAP calculated in {end-start:.2f} seconds")
-            
-            self.log("map", map_value, on_step=False, on_epoch=True, logger=True, prog_bar=True)
-            self.log("map_time", end-start, on_step=False, on_epoch=True, logger=True, prog_bar=True)
+
+            self.log(
+                "map",
+                map_value,
+                on_step=False,
+                on_epoch=True,
+                logger=True,
+                prog_bar=True,
+            )
+            self.log(
+                "map_time",
+                end - start,
+                on_step=False,
+                on_epoch=True,
+                logger=True,
+                prog_bar=True,
+            )
         else:
-            self.mAP.reset() #probably useless, we don't update it anymore in other epochs
+            self.mAP.reset()  # probably useless, we don't update it anymore in other epochs
 
-
-        
 
 class FaceDataModule(pl.LightningDataModule):
     """doc here"""
@@ -257,23 +266,21 @@ class FaceDataModule(pl.LightningDataModule):
 
         self.batch_size = config["batch_size"]
         self.num_workers = config["num_workers"]
-        self.image_size = config["image_size"]
-        self.aug_cfg = config["aug_cfg"]
-
-        # input_size = max(self.image_size)
-        # quick_means = config["mean_pix_val"]  # TODO deal with this ugly impl.
-
+        self.image_size = tuple(config["image_size"])
+        self.aug_cfg = config["augmentations"]
 
     def setup(self, stage=None) -> None:  # type: ignore
         # check if dataset exists
         train_ok = TRAIN_IMAGE_PATH.exists()
         val_ok = VAL_IMAGE_PATH.exists()
-        lbl_ok =  TRAIN_LABEL_PATH.exists() and VAL_LABEL_PATH.exists()
+        lbl_ok = TRAIN_LABEL_PATH.exists() and VAL_LABEL_PATH.exists()
         if not lbl_ok:
-            raise ValueError("You can't download the labels yet") #TODO host json labels somewhere and change code in data_dld
-        download_data(not train_ok, not val_ok, labels = not lbl_ok, unzip=True)
+            raise ValueError(
+                "You can't download the labels yet"
+            )  # TODO host json labels somewhere and change code in data_dld
+        download_data(not train_ok, not val_ok, labels=not lbl_ok, unzip=True)
         self.preproc = Preproc(img_dim=self.image_size[0])
-    
+
     def train_dataloader(self):
         result = DataLoader(
             FaceDetectionDataset(
@@ -289,7 +296,7 @@ class FaceDataModule(pl.LightningDataModule):
             pin_memory=True,
             drop_last=True,
             collate_fn=detection_collate,
-            persistent_workers=True
+            persistent_workers=True,
         )
 
         return result
@@ -317,37 +324,27 @@ class FaceDataModule(pl.LightningDataModule):
 def main() -> None:
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
-    #arg("-c", "--config_path", type=Path, help="Path to the config.", required=True)
-    arg("-w", "--weights_path", type=str, help="path to the networks weights", default = None)
-    arg("-e", "--epochs", type=int, help="the number of epoches", default=10)
-    #arg("-b", "--batch_size", type=int, help="the batch size of the trainloaders", default=6)
-    args =  parser.parse_args()
+    # arg("-c", "--config_path", type=Path, help="Path to the config.", required=True)
+    arg(
+        "-w",
+        "--weights_path",
+        type=str,
+        help="path to the networks weights",
+        default=None,
+    )
+    arg("-e", "--epochs", type=int, help="the number of epochs", default=10)
+    arg(
+        "-c", "--config", type=str, help="path to config yml file", default="config.yml"
+    )
+    # arg("-b", "--batch_size", type=int, help="the batch size of the trainloaders", default=6)
+    args = parser.parse_args()
 
+    cfg = Path(args.config)
+    with cfg.open() as f:
+        config = yaml.load(f, Loader=yaml.SafeLoader)
+    # add path given in args to config
+    config["weights_path"] = args.weights_path
 
-    aug_cfg = Path("retina/augmentations.yaml")
-    with aug_cfg.open() as f:
-        aug_config = yaml.load(f, Loader=yaml.SafeLoader)
-    
-    config = {
-        "weights_path": args.weights_path,
-        "image_size" : (512,512),
-        "loss_factors" : {"loc": .25, "cls" : .1, "ldm": .01},
-        "lr" : 0.001,
-        "weight_decay" : 0.0001,
-        "momentum" : 0.9,
-        "num_workers": 4,
-        "mean_pix_val" : [104.0, 117.0, 123.0],
-        "aug_cfg" : aug_config,
-        "scheduler" : {"T_0": 10, "T_mult": 2},
-        "batch_size" : 12,
-        "variance": [0.1, 0.2],
-        "iou_threshold" : 0.5,
-        "nms_threshold" : 0.3,
-        "neg_pos_ratio" : 3,
-        "seed" : 43,
-        "detection_thres_for_mAP" : .4,
-        "mAP_epoch_interval" : 5,
-    }
     pl.trainer.seed_everything(config["seed"])
 
     pipeline = RetinaFace(config)
@@ -355,19 +352,19 @@ def main() -> None:
 
     dm = FaceDataModule(config)
 
-    
     trainer = pl.Trainer(
-        accelerator= "gpu" if gpu_count > 0 else "cpu",
+        accelerator="gpu" if gpu_count > 0 else "cpu",
         gpus=gpu_count,
-        max_epochs= args.epochs,
-        num_sanity_val_steps= 1,
-        progress_bar_refresh_rate= 1,
-        benchmark= True,
-        precision= 16 if gpu_count > 0 else 32,
-        sync_batchnorm= True,
-        #callbacks=[object_from_dict(config.checkpoint_callback)]
+        max_epochs=args.epochs,
+        num_sanity_val_steps=1,
+        progress_bar_refresh_rate=1,
+        benchmark=True,
+        precision=16 if gpu_count > 0 else 32,
+        sync_batchnorm=True,
+        # callbacks=[object_from_dict(config.checkpoint_callback)]
     )
     trainer.fit(pipeline, dm)
+
 
 if __name__ == "__main__":
     main()
