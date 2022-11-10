@@ -13,6 +13,8 @@ RUN apt-get update --fix-missing && \
 ARG FACE_PIXELIZER=/opt/face_pixelizer
 RUN mkdir ${FACE_PIXELIZER}
 COPY data_download.py ${FACE_PIXELIZER}/data_download.py
+WORKDIR ${FACE_PIXELIZER}
+RUN pip install wget==3.2
 RUN python data_download.py -az
 
 ARG RETINA=/opt/face_pixelizer/retina
@@ -33,5 +35,4 @@ COPY retina/models/custom_retinaface.py ${RETINA}/models/custom_retinaface.py
 
 RUN pip install opencv-python
 RUN pip install -e ${RETINA}
-WORKDIR ${FACE_PIXELIZER}
 ENV PYTHONPATH "${PYTHONPATH}:${RETINA}"
