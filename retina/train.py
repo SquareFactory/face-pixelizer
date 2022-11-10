@@ -22,9 +22,10 @@ from retina import clip_all_boxes, retinaface
 
 TRAIN_IMAGE_PATH = Path("data/WIDER_train/WIDER_train/images")
 VAL_IMAGE_PATH = Path("data/WIDER_val/WIDER_val/images")
+# TEST_IMAGE_PATH = Path("data/WIDER_test/WIDER_test/images")
 
-TRAIN_LABEL_PATH = Path("data/annotations/train/label.json")
-VAL_LABEL_PATH = Path("data/annotations/val/label.json")
+TRAIN_LABEL_PATH = Path("data/WIDER_labels/annotations/train/label.json")
+VAL_LABEL_PATH = Path("data/WIDER_labels/annotations/val/label.json")
 
 
 class RetinaFace(pl.LightningModule):
@@ -115,10 +116,8 @@ class RetinaFace(pl.LightningModule):
 
         for t in targets:
             t[:, 14] = -1
-        # print(targets[0])
         image_height = images.shape[2]
         image_width = images.shape[3]
-        # annotations = batch["annotation"]
         out = self.forward(images)
 
         loss_localization, loss_classification, _ = self.loss(out, targets)
@@ -158,24 +157,14 @@ class RetinaFace(pl.LightningModule):
             ).to(images.device)
 
             # do NMS
-            # if self.global_step % 10000 == 0:
-            #     print(f"Before NMS {len(boxes)}")
-
             keep = nms(boxes, scores, self.config["nms_threshold"])
             boxes = boxes[keep, :]
             if boxes.shape[0] == 0:
                 continue
 
-            # if self.current_epoch % 10 == 0:
-            #     print(f"After NMS {len(boxes)}")
-
             scores = scores[keep]
 
             target_boxes = targets[batch_id][:, :4] * scale
-
-            # print(file_names[batch_id], targets[batch_id][:,:4], scale)
-
-            # print(file_names[batch_id], boxes[:30], scores[:30], target_boxes[:30])
 
             predictions.append(
                 {
@@ -241,8 +230,6 @@ class RetinaFace(pl.LightningModule):
                 logger=True,
                 prog_bar=True,
             )
-        else:
-            self.mAP.reset()  # probably useless, we don't update it anymore in other epochs
 
 
 class FaceDataModule(pl.LightningDataModule):
@@ -317,6 +304,26 @@ class FaceDataModule(pl.LightningDataModule):
         )
         return result
 
+    # Not implemented yet
+    # def test_dataloader(self):
+    #     result = DataLoader(
+    #         FaceDetectionDataset(
+    #             label_path=TEST_LABEL_PATH,
+    #             image_path=TEST_IMAGE_PATH,
+    #             transform=from_dict(self.aug_cfg["test_aug"]),
+    #             preproc=self.preproc,
+    #             rotate90=False,
+    #         ),
+    #         batch_size=self.batch_size,
+    #         num_workers=self.num_workers,
+    #         shuffle=False,
+    #         pin_memory=True,
+    #         drop_last=True,
+    #         collate_fn=detection_collate,
+    #         persistent_workers=True,
+    #     )
+    #     return result
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -338,7 +345,7 @@ def main() -> None:
     with cfg.open() as f:
         config = yaml.load(f, Loader=yaml.SafeLoader)
 
-    # add to config path given in args
+    # add to config the path given in args
     config["weights_path"] = args.weights_path
 
     pl.trainer.seed_everything(config["seed"])
