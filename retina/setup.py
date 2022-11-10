@@ -7,15 +7,13 @@ permission, please contact the copyright holders and delete this file.
 """
 from setuptools import find_packages, setup
 
-with open("isquare_train_requirements.txt") as f:
+with open("train_requirements.txt") as f:
     requirements = f.read().splitlines()
 
 setup(
     name="retina",
     packages=find_packages(include=["retina", "retina.*"]),
-    package_data={
-        "retina": ["augmentations.yaml"]
-    },
+    package_data={"retina": ["config.yml"]},
     version="0.0.1",
     description="Face detector and pixelizer, isquare usage example",
     author="SquareFactory SA",
