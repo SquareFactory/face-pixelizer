@@ -36,25 +36,48 @@ def download_data(
 
     # download labels
     if labels:
-        url = "http://shuoyang1213.me/WIDERFACE/support/bbx_annotation/wider_face_split.zip"
-        outp = path_to_data / "wider_face_split.zip"
+        url = "https://drive.google.com/uc?id=1oI4I313hOrmO9G312KuYC-kx35fy922T"
+        outp = path_to_data / "wider_annotations.zip"
         wget.download(url, str(outp))
         if unzip:
             shutil.unpack_archive(outp, path_to_data / "WIDER_labels")
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-ts", "--train_set", type=bool, help="Download the train_set", default=True
+        "-ts",
+        "--train_set",
+        action="store_true",
+        help="Download the training set",
+        default=False,
     )
     parser.add_argument(
-        "-vs", "--val_set", type=bool, help="Download the val_set", default=True
+        "-vs",
+        "--val_set",
+        action="store_true",
+        help="Download the validation set",
+        default=False,
     )
     parser.add_argument(
-        "-lbl", "--labels", type=bool, help="Download the annotations", default=True
+        "-lbl",
+        "--labels",
+        action="store_true",
+        help="Download the annotations",
+        default=False,
     )
     parser.add_argument(
-        "-z", "--unzip", type=bool, help="unzip all the downloaded files", default=True
+        "-a", "--all", action="store_true", help="Download all", default=False
+    )
+    parser.add_argument(
+        "-z",
+        "--unzip",
+        action="store_true",
+        help="unzip all the downloaded files",
+        default=False,
     )
     args = parser.parse_args()
-    download_data(args.train_set, args.val_set, args.labels, args.unzip)
+    if args.all:
+        download_data(True, True, True, args.unzip)
+    else:
+        download_data(args.train_set, args.val_set, args.labels, args.unzip)

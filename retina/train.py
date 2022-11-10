@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 from torchvision.ops import nms
 
-from retina import clip_all_boxes, download_data, retinaface
+from retina import clip_all_boxes, retinaface
 
 TRAIN_IMAGE_PATH = Path("data/WIDER_train/WIDER_train/images")
 VAL_IMAGE_PATH = Path("data/WIDER_val/WIDER_val/images")
@@ -270,15 +270,12 @@ class FaceDataModule(pl.LightningDataModule):
         self.aug_cfg = config["augmentations"]
 
     def setup(self, stage=None) -> None:  # type: ignore
-        # check if dataset exists
-        train_ok = TRAIN_IMAGE_PATH.exists()
-        val_ok = VAL_IMAGE_PATH.exists()
-        lbl_ok = TRAIN_LABEL_PATH.exists() and VAL_LABEL_PATH.exists()
-        if not lbl_ok:
-            raise ValueError(
-                "You can't download the labels yet"
-            )  # TODO host json labels somewhere and change code in data_dld
-        download_data(not train_ok, not val_ok, labels=not lbl_ok, unzip=True)
+        # check if dataset exists and download it. Handled by docker build
+        # train_ok = TRAIN_IMAGE_PATH.exists()
+        # val_ok = VAL_IMAGE_PATH.exists()
+        # lbl_ok = TRAIN_LABEL_PATH.exists() and VAL_LABEL_PATH.exists()
+
+        # download_data(not train_ok, not val_ok, labels=not lbl_ok, unzip=True)
         self.preproc = Preproc(img_dim=self.image_size[0])
 
     def train_dataloader(self):

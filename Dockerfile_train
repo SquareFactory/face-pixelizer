@@ -1,5 +1,5 @@
-FROM nvcr.io/nvidia/pytorch:22.04-py3
-
+FROM nvcr.io/nvidia/pytorch:21.07-py3
+ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update --fix-missing && \
     apt-get install -y \
       curl \
@@ -7,18 +7,35 @@ RUN apt-get update --fix-missing && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-COPY retina/train_requirements.txt requirements.txt
-RUN pip install -r requirements.txt
+
+#RUN pip install -r requirements.txt # no need, they are installed with pip install -e ${RETINA} later on
 
 ARG FACE_PIXELIZER=/opt/face_pixelizer
 RUN mkdir ${FACE_PIXELIZER}
+COPY data_download.py ${FACE_PIXELIZER}/data_download.py
+WORKDIR ${FACE_PIXELIZER}
+RUN pip install wget==3.2
+RUN python data_download.py -az
 
-ARG RETINA=/opt/face_pixeliser/retina
+ARG RETINA=/opt/face_pixelizer/retina
 RUN mkdir ${RETINA}
-RUN mkdir ${RETINA}/models
 COPY retina/train.py ${RETINA}/train.py
-COPY retina/models/base_nets.py ${RETINA}/models/base_nets.py
-COPY retina/config.yml ${FACE_PIXELIZER}/config.yml
-COPY retina/models/custom_retinaface.py ${RETINA}/models/custom_retinaface.py
-COPY retina/utils/data_download.py ${FACE_PIXELIZER}/data_download.py
+COPY retina/config.yml ${RETINA}/config.yml
+COPY retina/__init__.py ${RETINA}/__init__.py
+COPY retina/setup.py ${RETINA}/setup.py
+COPY retina/train_requirements.txt ${RETINA}/train_requirements.txt
 
+
+
+RUN mkdir ${RETINA}/models
+COPY retina/models/base_nets.py ${RETINA}/models/base_nets.py
+COPY retina/models/custom_retinaface.py ${RETINA}/models/custom_retinaface.py
+
+RUN mkdir ${RETINA}/utils
+COPY retina/utils/utils.py ${RETINA}/utils/utils.py
+
+
+
+RUN pip install opencv-python
+RUN pip install -e ${RETINA}
+ENV PYTHONPATH "${PYTHONPATH}:${RETINA}"
