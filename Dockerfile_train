@@ -31,6 +31,9 @@ RUN mkdir ${RETINA}/models
 COPY retina/models/base_nets.py ${RETINA}/models/base_nets.py
 COPY retina/models/custom_retinaface.py ${RETINA}/models/custom_retinaface.py
 
+RUN mkdir ${RETINA}/utils
+COPY retina/utils/utils.py ${RETINA}/utils/utils.py
+
 
 
 RUN pip install opencv-python
