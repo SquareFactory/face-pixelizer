@@ -7,7 +7,7 @@ permission, please contact the copyright holders and delete this file.
 """
 from setuptools import find_packages, setup
 
-with open("train_requirements.txt") as f:
+with open("retina/train_requirements.txt") as f:
     requirements = f.read().splitlines()
 
 setup(

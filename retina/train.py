@@ -337,7 +337,13 @@ def main() -> None:
         default=None,
     )
     arg("-e", "--epochs", type=int, help="the number of epochs", default=10)
-    arg("-c", "--config", type=str, help="path to config yml", default="config.yml")
+    arg(
+        "-c",
+        "--config",
+        type=str,
+        help="path to config yml",
+        default="retina/config.yml",
+    )
 
     args = parser.parse_args()
 

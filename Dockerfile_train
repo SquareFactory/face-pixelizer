@@ -8,34 +8,37 @@ RUN apt-get update --fix-missing && \
     rm -rf /var/lib/apt/lists/*
 
 
-#RUN pip install -r requirements.txt # no need, they are installed with pip install -e ${RETINA} later on
 
-ARG FACE_PIXELIZER=/opt/face_pixelizer
-RUN mkdir ${FACE_PIXELIZER}
-COPY data_download.py ${FACE_PIXELIZER}/data_download.py
-WORKDIR ${FACE_PIXELIZER}
-RUN pip install wget==3.2
-RUN python data_download.py -az
+COPY retina/train_requirements.txt requirements.txt
+RUN pip install opencv-python wget==3.2
+RUN pip install -r requirements.txt
+RUN rm requirements.txt
 
-ARG RETINA=/opt/face_pixelizer/retina
-RUN mkdir ${RETINA}
-COPY retina/train.py ${RETINA}/train.py
-COPY retina/config.yml ${RETINA}/config.yml
-COPY retina/__init__.py ${RETINA}/__init__.py
-COPY retina/setup.py ${RETINA}/setup.py
-COPY retina/train_requirements.txt ${RETINA}/train_requirements.txt
-
-
-
-RUN mkdir ${RETINA}/models
-COPY retina/models/base_nets.py ${RETINA}/models/base_nets.py
-COPY retina/models/custom_retinaface.py ${RETINA}/models/custom_retinaface.py
-
-RUN mkdir ${RETINA}/utils
-COPY retina/utils/utils.py ${RETINA}/utils/utils.py
+# ARG DATA=/home/data_for_face_pixelizer
+# RUN mkdir ${DATA}
+# COPY data_download.py ${DATA}/data_download.py
+# WORKDIR ${DATA}
+# RUN python data_download.py -az
+WORKDIR /home
+#
+#RUN mkdir ${RETINA}
+#COPY retina/train.py ${RETINA}/train.py
+#COPY retina/config.yml ${RETINA}/config.yml
+#COPY retina/__init__.py ${RETINA}/__init__.py
+#COPY retina/setup.py ${RETINA}/setup.py
 
 
 
-RUN pip install opencv-python
-RUN pip install -e ${RETINA}
+#RUN mkdir ${RETINA}/models
+#COPY retina/models/base_nets.py ${RETINA}/models/base_nets.py
+#COPY retina/models/custom_retinaface.py ${RETINA}/models/custom_retinaface.py
+
+#RUN mkdir ${RETINA}/utils
+#COPY retina/utils/utils.py ${RETINA}/utils/utils.py
+
+
+
+
+#RUN pip install -e ${RETINA}
+ARG RETINA=/home/face_pixelizer/retina
 ENV PYTHONPATH "${PYTHONPATH}:${RETINA}"
