@@ -206,10 +206,6 @@ class RetinaFace(pl.LightningModule):
             end = time.time()
 
             all_map_value["computation_time"] = end - start
-            torch.save(
-                all_map_value,
-                f"lightning_logs/maps/map_value@epoch_{self.current_epoch +1}.ptt",
-            )
             map_value = all_map_value["map"]
 
             print(f"Last mAP calculated in {end-start:.2f} seconds")
@@ -217,14 +213,6 @@ class RetinaFace(pl.LightningModule):
             self.log(
                 "map",
                 map_value,
-                on_step=False,
-                on_epoch=True,
-                logger=True,
-                prog_bar=True,
-            )
-            self.log(
-                "map_time",
-                end - start,
                 on_step=False,
                 on_epoch=True,
                 logger=True,
@@ -257,7 +245,7 @@ class FaceDataModule(pl.LightningDataModule):
         self.aug_cfg = config["augmentations"]
 
     def setup(self, stage=None) -> None:  # type: ignore
-        # check if dataset exists and download it. Handled by docker build
+        # check if dataset exists and download it. Not anymore: handled by docker build
         # train_ok = TRAIN_IMAGE_PATH.exists()
         # val_ok = VAL_IMAGE_PATH.exists()
         # lbl_ok = TRAIN_LABEL_PATH.exists() and VAL_LABEL_PATH.exists()
