@@ -3,6 +3,8 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update --fix-missing && \
     apt-get install -y \
       curl \
+      libsm6 \
+      libxext6 \
       python3-virtualenv && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -19,7 +21,6 @@ RUN rm requirements.txt
 # COPY data_download.py ${DATA}/data_download.py
 # WORKDIR ${DATA}
 # RUN python data_download.py -az
-WORKDIR /home
 #
 #RUN mkdir ${RETINA}
 #COPY retina/train.py ${RETINA}/train.py
@@ -40,5 +41,5 @@ WORKDIR /home
 
 
 #RUN pip install -e ${RETINA}
-ARG RETINA=/home/face_pixelizer/retina
-ENV PYTHONPATH "${PYTHONPATH}:${RETINA}"
+#ARG RETINA=/home/face_pixelizer/retina
+#ENV PYTHONPATH "${PYTHONPATH}:${RETINA}"
