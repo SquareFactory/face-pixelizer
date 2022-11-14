@@ -12,7 +12,7 @@ RUN apt-get update --fix-missing && \
 
 
 COPY retina/train_requirements.txt requirements.txt
-RUN pip install opencv-python==4.5.3.56 wget==3.2
+RUN pip install opencv-python wget==3.2
 RUN pip install -r requirements.txt
 RUN rm requirements.txt
 
