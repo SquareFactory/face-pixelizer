@@ -369,6 +369,20 @@ def main() -> None:
     )
     trainer.fit(pipeline, dm)
 
+    # Save state dict and config
+    idx = 1
+    run_name = f"artifacts/training-run-{idx}"
+    while Path(f"{run_name}.pth").exists():
+        idx += 1
+        run_name = f"artifacts/training-run-{idx}"
+
+    torch.save(pipeline.state_dict, f"{run_name}.pth")
+
+    with open(f"{run_name}.yml", "w") as outfile:
+        yaml.dump(config, outfile, default_flow_style=False)
+
+    print(f"Saving config and weights at ./artifacts/{run_name}")
+
 
 if __name__ == "__main__":
     main()

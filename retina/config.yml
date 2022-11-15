@@ -22,7 +22,7 @@ variance:
 - 0.1
 - 0.2
 weight_decay: 0.0001
-backbone_weights_path: 'artifacts/pretrained/MobileNetv1'
+backbone_weights_path: 'artifacts/pretrained/MobileNetv1.pth'
 
 checkpoint_callback:
   monitor: val_loss

@@ -5,7 +5,6 @@ This file is confidential and only available to authorized individuals with the
 permission of the copyright holders. If you encounter this file and do not have
 permission, please contact the copyright holders and delete this file.
 """
-
 from typing import Dict
 
 import torch
