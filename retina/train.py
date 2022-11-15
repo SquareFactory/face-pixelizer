@@ -376,12 +376,12 @@ def main() -> None:
         idx += 1
         run_name = f"artifacts/training-run-{idx}"
 
-    torch.save(pipeline.state_dict, run_name)
+    torch.save(pipeline.state_dict, f"{run_name}.pth")
 
     with open(f"{run_name}.yml", "w") as outfile:
         yaml.dump(config, outfile, default_flow_style=False)
 
-    print(f"Saving config and weights at artifacts/{run_name}")
+    print(f"Saving config and weights at ./artifacts/{run_name}")
 
 
 if __name__ == "__main__":
