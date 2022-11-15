@@ -381,6 +381,8 @@ def main() -> None:
     with open(f"{run_name}.yml", "w") as outfile:
         yaml.dump(config, outfile, default_flow_style=False)
 
+    print(f"Saving config and weights at artifacts/{run_name}")
+
 
 if __name__ == "__main__":
     main()
