@@ -1,17 +1,20 @@
-"""
-mostly taken from https://github.com/biubug6/Pytorch_Retinaface
+"""Copyright (C) SquareFactory SA - All Rights Reserved.
+This source code is protected under international copyright law. All rights 
+reserved and protected by the copyright holders.
+This file is confidential and only available to authorized individuals with the
+permission of the copyright holders. If you encounter this file and do not have
+permission, please contact the copyright holders and delete this file.
+
+Adapted from https://github.com/biubug6/Pytorch_Retinaface
 
 note that the landmarks part was removed since it is no usefull
 in our case
 """
 
 
-from typing import Dict
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torchvision.models as models
 
 
 def conv_bn(inp, oup, stride=1, leaky=0):
@@ -100,7 +103,7 @@ class FPN(nn.Module):
 
     def forward(self, inputs):
         # names = list(input.keys())
-        inputs = list(inputs.values()) #put this line back for mobilenetv1
+        inputs = list(inputs.values())  # put this line back for mobilenetv1
 
         output1 = self.output1(inputs[0])
         output2 = self.output2(inputs[1])
@@ -145,7 +148,7 @@ class MobileNetV1(nn.Module):
             conv_dw(256, 256, 1),  # 241 + 64 = 301
         )
         self.avg = nn.AdaptiveAvgPool2d((1, 1))
-        #self.fc = nn.Linear(256, 1000)
+        # self.fc = nn.Linear(256, 1000)
 
     def forward(self, x):
         x = self.stage1(x)
@@ -188,15 +191,10 @@ class LandmarkHead(nn.Module):
     def __init__(self, in_channels=512, num_anchors=3):
         super(LandmarkHead, self).__init__()
         self.conv1x1 = nn.Conv2d(
-            in_channels,
-            num_anchors * 10,
-            kernel_size=(1, 1),
-            stride=1, padding=0
+            in_channels, num_anchors * 10, kernel_size=(1, 1), stride=1, padding=0
         )
 
     def forward(self, x):
         out = self.conv1x1(x)
         out = out.permute(0, 2, 3, 1).contiguous()
         return out.view(out.shape[0], -1, 10)
-
-
