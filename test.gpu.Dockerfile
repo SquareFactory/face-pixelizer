@@ -1,4 +1,4 @@
-FROM archipel/archipel-base-gpu:latest
+FROM squarefactory/archipel-base-gpu:latest
 
 RUN pip install \
   albumentations==1.3.0 \

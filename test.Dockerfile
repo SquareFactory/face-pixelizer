@@ -1,4 +1,4 @@
-FROM archipel/archipel-base-cpu:latest
+FROM squarefactory/archipel-base-cpu:latest
 
 RUN pip install \
   albumentations==1.3.0 \
