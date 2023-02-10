@@ -27,3 +27,5 @@ If you used our provided image, you should see the following output:
 ![example](imgs/plot.jpg)
 
 ## Scale your training using iSquare
+We kindly recomend following the [tutorial](docs.isquare.ai). You can use iSquare to scale your training to better hardware, perform parallel hyperparameter sweeps, monitor and compare your models, and much more. 
+Once you've deployed your model, you can interact with it using our [python client](https://github.com/SquareFactory/i2-cli). You can perform single inference, stream data asynchronously and integrate deep learning models in any of your code by adding just 3 lines.
