@@ -5,9 +5,10 @@ This file is confidential and only available to authorized individuals with the
 permission of the copyright holders. If you encounter this file and do not have
 permission, please contact the copyright holders and delete this file.
 """
+
 from setuptools import find_packages, setup
 
-with open("retina/train_requirements.txt") as f:
+with open("train/train_requirements.txt") as f:
     requirements = f.read().splitlines()
 
 setup(
@@ -15,7 +16,7 @@ setup(
     packages=find_packages(include=["retina", "retina.*"]),
     package_data={"retina": ["config.yml"]},
     version="0.0.1",
-    description="Face detector and pixelizer, isquare usage example",
+    description="Face detector and pixelizer, isquare train example",
     author="SquareFactory SA",
     license="MIT",
     requires_python=">=3.8",

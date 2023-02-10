@@ -1,0 +1,17 @@
+FROM nvcr.io/nvidia/pytorch:21.07-py3
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update --fix-missing && \
+    apt-get install -y \
+      curl \
+      libsm6 \
+      libxext6 \
+      python3-virtualenv && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+
+
+COPY train/train_requirements.txt requirements.txt
+RUN pip install opencv-python wget==3.2
+RUN pip install -r requirements.txt
+RUN rm requirements.txt
