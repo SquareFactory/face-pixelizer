@@ -361,7 +361,6 @@ def main() -> None:
         gpus=gpu_count,
         max_epochs=args.epochs,
         num_sanity_val_steps=1,
-        progress_bar_refresh_rate=1,
         benchmark=True,
         precision=16 if gpu_count > 0 else 32,
         sync_batchnorm=True,
