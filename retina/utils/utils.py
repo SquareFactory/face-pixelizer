@@ -22,10 +22,7 @@ def get_prior_box(
     steps=[8, 16, 32],
     clip=False,
 ):
-    """Compute prior box.
-    <TODO> vectorize to increase speed
-    """
-
+    """Compute prior box."""
     feature_maps = [[ceil(height / step), ceil(width / step)] for step in steps]
 
     anchors = []

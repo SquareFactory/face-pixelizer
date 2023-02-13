@@ -23,7 +23,7 @@ variance:
 - 0.2
 weight_decay: 0.0001
 backbone_weights_path: 'weights/MobileNetv1.pth'
-weights_path: 'weights/retinaface_modif_mobilenet_0.25.pth' # remove for training
+# weights_path: 'weights/retinaface_modif_mobilenet_0.25.pth' # remove for training
 
 checkpoint_callback:
   monitor: val_loss

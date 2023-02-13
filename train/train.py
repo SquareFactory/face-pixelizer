@@ -16,6 +16,8 @@ import torch
 import torch.nn.functional as F
 import yaml
 from albumentations.core.serialization import from_dict
+
+# from pip pkg : retinaface-pytorch
 from retinaface.box_utils import decode
 from retinaface.data_augment import Preproc
 from retinaface.dataset import FaceDetectionDataset, detection_collate
@@ -25,6 +27,7 @@ from torch.utils.data import DataLoader
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 from torchvision.ops import nms
 
+# from our custom-made pkg : retina
 from retina import clip_all_boxes, retinaface
 
 TRAIN_IMAGE_PATH = Path("data/WIDER_train/WIDER_train/images")
