@@ -31,16 +31,20 @@ class FacePixelizer:
         score_threshold: float = 0.5,
         nms_threshold: float = 0.5,
         state_dict_path: str = "/opt/face_pixelizer/retinaface_mobilenet_0.25.pth",
+        use_landmarks=False,
         device="cuda",
     ):
         self.device = device if torch.cuda.is_available() else "cpu"
         self.score_threshold = score_threshold
         self.nms_threshold = nms_threshold
         self.input_size = input_size
+        self.use_landmarks = use_landmarks
 
         height, width = input_size, input_size
 
-        self.model = retinaface({"weights_path": state_dict_path})
+        self.model = retinaface(
+            {"weights_path": state_dict_path}, use_landmarks=use_landmarks
+        )
         self.model.eval()
         dump_inputs = torch.randn(1, 3, height, width)
         self.model = torch.jit.trace(self.model, dump_inputs)
@@ -78,7 +82,10 @@ class FacePixelizer:
 
         # Inferences
         with torch.no_grad():
-            boxes, scores = self.model(tensors)
+            if self.use_landmarks:
+                boxes, scores, landmarks = self.model(tensors)
+            else:
+                boxes, scores = self.model(tensors)
 
         # Analyze outputs
         variances = [0.1, 0.2]
@@ -129,6 +136,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--image_path", type=str)
     parser.add_argument("--device", type=str, default="cuda")
+    parser.add_argument(
+        "-w",
+        "--weights_path",
+        type=str,
+        help="Path to the networks weights.",
+        default="weights/retinaface_mobilenet_0.25.pth",
+    )
+    parser.add_argument(
+        "-noldm", "--no-landmarks", help="Avoid use of landmarks", action="store_false"
+    )
+
     args = parser.parse_args()
 
     if not os.path.isfile(args.image_path):
@@ -142,14 +160,15 @@ if __name__ == "__main__":
     # Setup model
     face_pixelizer = FacePixelizer(
         input_size=512,
-        state_dict_path="weights/retinaface_mobilenet_0.25.pth",
+        state_dict_path=args.weights_path,
         device=args.device,
+        use_landmarks=args.no_landmarks,
     )
 
     # Inference
     start = time.time()
     pred = face_pixelizer([img])[0]
-    print(f"inference done in {time.time() - start:0.3f} secs. {input_shape}")
+    print(f"inference done in {time.time() - start:0.3f} secs.")
 
     # Plot images
     f, axes = plt.subplots(2, 1)

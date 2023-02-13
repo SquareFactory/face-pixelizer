@@ -38,17 +38,18 @@ TRAIN_LABEL_PATH = Path("data/WIDER_labels/annotations/train/label.json")
 VAL_LABEL_PATH = Path("data/WIDER_labels/annotations/val/label.json")
 
 
-class RetinaFace(pl.LightningModule):
-    def __init__(self, config):
+class RetinaFaceLitMod(pl.LightningModule):
+    def __init__(self, config, use_landmarks=True):
         """doc here
         not up to date
         :param cfg:  Network related settings.
         :param phase: train or test.
         """
-        super(RetinaFace, self).__init__()
+        super().__init__()
         self.config = config
-        self.model = retinaface(config)
+        self.model = retinaface(config, use_landmarks=use_landmarks)
         self.image_size = tuple(config["image_size"])
+        self.use_landmarks = use_landmarks
 
         self.loss_factors = config["loss_factors"]
 
@@ -58,6 +59,12 @@ class RetinaFace(pl.LightningModule):
             steps=[8, 16, 32],
             clip=False,
         )
+
+        if not use_landmarks:
+            self.loss_factors["ldm"] = 0
+            self.fake_ldm_input = torch.ones(
+                [config["batch_size"], len(self.priors), 10]
+            )
 
         self.loss = MultiBoxLoss(
             num_classes=2,
@@ -101,6 +108,16 @@ class RetinaFace(pl.LightningModule):
         targets = batch["annotation"]
         out = self.forward(images)
 
+        if not self.use_landmarks:
+            # if we don't use landmarks we add a fake output, to avoid errors
+            # in loss comput.
+            fake_ldm = self.fake_ldm_input[
+                : len(out[0]), :, :
+            ]  # in case last batch is smaller
+            out = (*out, fake_ldm.to(images.device))
+            for t in targets:
+                t[:, 14] = -1
+
         loss_localization, loss_classification, loss_landmarks = self.loss(out, targets)
 
         total_loss = (
@@ -122,15 +139,18 @@ class RetinaFace(pl.LightningModule):
     def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int):  # type: ignore
         images = batch["image"]
         targets = batch["annotation"]
-        batch["file_name"]
 
-        for t in targets:
-            t[:, 14] = -1
-        image_height = images.shape[2]
-        image_width = images.shape[3]
         out = self.forward(images)
 
-        loss_localization, loss_classification, _ = self.loss(out, targets)
+        if not self.use_landmarks:
+            # if we don't use landmarks we add a fake output, to avoid errors
+            # in loss comput. Landmarks data not provided for validation.
+            fake_ldm = self.fake_ldm_input[
+                : len(out[0]), :, :
+            ]  # in case last batch is smaller
+            out = (*out, fake_ldm.to(images.device))
+
+        loss_localization, loss_classification, itit = self.loss(out, targets)
 
         total_loss = (
             self.loss_factors["loc"] * loss_localization
@@ -145,9 +165,7 @@ class RetinaFace(pl.LightningModule):
         predictions: List[Dict[str, Any]] = []
         gtruth: List[Dict[str, Any]] = []
 
-        scale = torch.from_numpy(np.tile([image_height, image_width], 2)).to(
-            location.device
-        )
+        scale = torch.from_numpy(np.tile(self.image_size, 2)).to(location.device)
         priors_cuda = self.priors.to(images.device)
 
         for batch_id in range(batch_size):
@@ -162,9 +180,9 @@ class RetinaFace(pl.LightningModule):
             boxes = boxes[valid_index]
             scores = scores[valid_index]
             boxes *= scale
-            boxes = clip_all_boxes(
-                boxes, (image_height, image_width), in_place=False
-            ).to(images.device)
+            boxes = clip_all_boxes(boxes, self.image_size, in_place=False).to(
+                images.device
+            )
 
             # do NMS
             keep = nms(boxes, scores, self.config["nms_threshold"])
@@ -327,21 +345,15 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
 
-    arg(
-        "-w",
-        "--weights_path",
-        type=str,
-        help="path to the networks weights",
-        default=None,
-    )
+    # long str in parser
+    cfg_p = "retina/config.yml"
+    w_help = "path to the networks weights. Generally not used for training"
+
+    # args
+    arg("-w", "--weights_path", type=str, help=w_help, default=None)
     arg("-e", "--epochs", type=int, help="the number of epochs", default=10)
-    arg(
-        "-c",
-        "--config",
-        type=str,
-        help="path to config yml",
-        default="retina/config.yml",
-    )
+    arg("-c", "--config", type=str, help="path to config yml", default=cfg_p)
+    arg("-noldm", "--no-landmarks", action="store_false")
 
     args = parser.parse_args()
 
@@ -354,7 +366,7 @@ def main() -> None:
 
     pl.trainer.seed_everything(config["seed"])
 
-    pipeline = RetinaFace(config)
+    pipeline = RetinaFaceLitMod(config, use_landmarks=args.no_landmarks)
     gpu_count = torch.cuda.device_count()
 
     dm = FaceDataModule(config)
@@ -378,7 +390,7 @@ def main() -> None:
         idx += 1
         run_name = f"artifacts/training-run-{idx}"
 
-    torch.save(pipeline.state_dict, f"{run_name}.pth")
+    torch.save(pipeline.model.state_dict(), f"{run_name}.pth")
 
     with open(f"{run_name}.yml", "w") as outfile:
         yaml.dump(config, outfile, default_flow_style=False)

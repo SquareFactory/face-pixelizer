@@ -16,7 +16,7 @@ from ..models.base_nets import FPN, SSH, BboxHead, ClassHead, LandmarkHead, Mobi
 
 
 class RetinaFace(nn.Module):
-    def __init__(self, landmarks=False):
+    def __init__(self, use_landmarks=False):
         """
         RetinaFace network with a MobileNetV1 Backbone for high-speed inference.
         By default, it does not learn to predict facial landmarks location.
@@ -25,7 +25,7 @@ class RetinaFace(nn.Module):
             landmarks : set to true if you want to use landmarks
         """
         super(RetinaFace, self).__init__()
-        self.landmarks = landmarks
+        self.use_landmarks = use_landmarks
 
         backbone = MobileNetV1()
         return_layers = {"stage1": 1, "stage2": 2, "stage3": 3}
@@ -48,7 +48,7 @@ class RetinaFace(nn.Module):
         for _ in range(fpn_num):
             self.BboxHead.append(BboxHead(out_channels, anchor_num))
 
-        if self.landmarks:
+        if self.use_landmarks:
             self.LandmarkHead = nn.ModuleList()
             for _ in range(fpn_num):
                 self.LandmarkHead.append(LandmarkHead(out_channels, anchor_num))
@@ -66,7 +66,7 @@ class RetinaFace(nn.Module):
         if not self.training:
             classifications = F.softmax(classifications, dim=-1)
 
-        if self.landmarks:
+        if self.use_landmarks:
             ldm_regressions = [self.LandmarkHead[i](feat) for i, feat in enumerate(ssh)]
             ldm_regressions = torch.cat(ldm_regressions, dim=1)
             # different return size if landmarks are used
@@ -74,7 +74,7 @@ class RetinaFace(nn.Module):
         return bbox_regressions, classifications
 
 
-def retinaface(config: Dict = {}, landmarks=False):
+def retinaface(config: Dict = {}, use_landmarks=False):
     """Easy access to any RetinaFace instance.
 
     Args:
@@ -88,7 +88,7 @@ def retinaface(config: Dict = {}, landmarks=False):
     Returns :
         a RetinaFace model instance, with weights from provided path loaded.
     """
-    model = RetinaFace(landmarks)
+    model = RetinaFace(use_landmarks)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
