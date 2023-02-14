@@ -7,7 +7,6 @@ import warnings
 
 import albumentations as A
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torchvision
@@ -121,6 +120,8 @@ class FacePixelizer:
 
 
 if __name__ == "__main__":
+
+    import matplotlib.pyplot as plt
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--image_path", type=str)
