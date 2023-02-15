@@ -32,7 +32,6 @@ from retina import clip_all_boxes, retinaface
 
 TRAIN_IMAGE_PATH = Path("data/WIDER_train/WIDER_train/images")
 VAL_IMAGE_PATH = Path("data/WIDER_val/WIDER_val/images")
-# TEST_IMAGE_PATH = Path("data/WIDER_test/WIDER_test/images")
 
 TRAIN_LABEL_PATH = Path("data/WIDER_labels/annotations/train/label.json")
 VAL_LABEL_PATH = Path("data/WIDER_labels/annotations/val/label.json")

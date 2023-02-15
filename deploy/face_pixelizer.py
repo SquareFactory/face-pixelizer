@@ -12,7 +12,7 @@ import numpy as np
 import torch
 import torchvision
 
-# If you did not set up the package w/ "pip install -e .", use paths instead:
+# If you did not set up the package with "pip install -e .", use paths instead:
 from retina.models.custom_retinaface import retinaface
 from retina.utils.utils import decode_boxes, get_prior_box, pixelize
 
@@ -144,7 +144,10 @@ if __name__ == "__main__":
         default="weights/retinaface_mobilenet_0.25.pth",
     )
     parser.add_argument(
-        "-noldm", "--no-landmarks", help="Set use of landmarks to false.", action="store_false"
+        "-noldm",
+        "--no-landmarks",
+        help="Set use of landmarks to false.",
+        action="store_false",
     )
 
     args = parser.parse_args()

@@ -74,13 +74,13 @@ def decode_boxes(boxes, priors, variances):
 # To undo the encoding we did for offset regression at train time.
 
 # Args:
-# landmarks (tensor): landm predictions for boxes layers,
-# Shape: [num_priors,10]
-# priors (tensor): Prior boxes in center-offset form.
-# Shape: [num_priors,4].
-# variances: (list[float]) Variances of priorboxes
+#     landmarks (tensor): landm predictions for boxes layers,
+#         Shape: [num_priors,10]
+#     priors (tensor): Prior boxes in center-offset form.
+#         Shape: [num_priors,4].
+#     variances: (list[float]) Variances of priorboxes
 # Return:
-# decoded landm predictions
+#     decoded landm predictions
 # """
 # return torch.cat(
 # (

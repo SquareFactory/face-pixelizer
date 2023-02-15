@@ -33,17 +33,17 @@ class ArchipelFacePixelizer(ImagesToImagesWorker):
         )
         parent_parser.add_argument(
             "--with-landmarks",
-            action = "store_true",
+            action="store_true",
             help="Whether or not the provided weights include a LandmarksHead.",
         )
 
     def setup_model(self):
         self.model = FacePixelizer(
-            input_size = self.args.input_size,
-            score_threshold = self.args.score_threshold,
-            nms_threshold = self.args.nms_threshold,
-            state_dict_path = self.args.state_dict,
-            use_landmarks = self.args.with_landmarks,
+            input_size=self.args.input_size,
+            score_threshold=self.args.score_threshold,
+            nms_threshold=self.args.nms_threshold,
+            state_dict_path=self.args.state_dict,
+            use_landmarks=self.args.with_landmarks,
         )
 
     def forward(self, imgs):
