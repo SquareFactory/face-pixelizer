@@ -1,5 +1,11 @@
-"""
-mostly taken from https://github.com/biubug6/Pytorch_Retinaface
+"""Copyright (C) SquareFactory SA - All Rights Reserved.
+This source code is protected under international copyright law. All rights 
+reserved and protected by the copyright holders.
+This file is confidential and only available to authorized individuals with the
+permission of the copyright holders. If you encounter this file and do not have
+permission, please contact the copyright holders and delete this file.
+
+Adapted from https://github.com/biubug6/Pytorch_Retinaface
 
 note that the landmarks part was removed since it is no usefull
 in our case
@@ -8,7 +14,6 @@ in our case
 
 import torch
 import torch.nn as nn
-import torchvision.models as models
 import torch.nn.functional as F
 
 
@@ -22,7 +27,8 @@ def conv_bn(inp, oup, stride=1, leaky=0):
 
 def conv_bn_no_relu(inp, oup, stride):
     return nn.Sequential(
-        nn.Conv2d(inp, oup, 3, stride, 1, bias=False), nn.BatchNorm2d(oup),
+        nn.Conv2d(inp, oup, 3, stride, 1, bias=False),
+        nn.BatchNorm2d(oup),
     )
 
 
@@ -96,8 +102,7 @@ class FPN(nn.Module):
         self.merge2 = conv_bn(out_channels, out_channels, leaky=leaky)
 
     def forward(self, inputs):
-        # names = list(input.keys())
-        inputs = list(inputs.values())
+        inputs = list(inputs.values())  # put this line back for mobilenetv1
 
         output1 = self.output1(inputs[0])
         output2 = self.output2(inputs[1])
@@ -142,7 +147,6 @@ class MobileNetV1(nn.Module):
             conv_dw(256, 256, 1),  # 241 + 64 = 301
         )
         self.avg = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(256, 1000)
 
     def forward(self, x):
         x = self.stage1(x)
@@ -181,78 +185,14 @@ class BboxHead(nn.Module):
         return out.view(out.shape[0], -1, 4)
 
 
-# class LandmarkHead(nn.Module):
-# def __init__(self, in_channels=512, num_anchors=3):
-# super(LandmarkHead, self).__init__()
-# self.conv1x1 = nn.Conv2d(
-# in_channels, num_anchors * 10, kernel_size=(1, 1), stride=1, padding=0
-# )
+class LandmarkHead(nn.Module):
+    def __init__(self, in_channels=512, num_anchors=3):
+        super(LandmarkHead, self).__init__()
+        self.conv1x1 = nn.Conv2d(
+            in_channels, num_anchors * 10, kernel_size=(1, 1), stride=1, padding=0
+        )
 
-# def forward(self, x):
-# out = self.conv1x1(x)
-# out = out.permute(0, 2, 3, 1).contiguous()
-# return out.view(out.shape[0], -1, 10)
-
-
-class RetinaFace(nn.Module):
-    def __init__(self):
-        """
-        :param cfg:  Network related settings.
-        :param phase: train or test.
-        """
-        super(RetinaFace, self).__init__()
-
-        backbone = MobileNetV1()
-        return_layers = {"stage1": 1, "stage2": 2, "stage3": 3}
-        in_channels = [32 * 2, 32 * 4, 32 * 8]
-        out_channels = 64
-        fpn_num = 3
-        anchor_num = 2
-
-        self.body = models._utils.IntermediateLayerGetter(backbone, return_layers)
-        self.fpn = FPN(in_channels, out_channels)
-        self.ssh1 = SSH(out_channels, out_channels)
-        self.ssh2 = SSH(out_channels, out_channels)
-        self.ssh3 = SSH(out_channels, out_channels)
-
-        self.ClassHead = nn.ModuleList()
-        for _ in range(fpn_num):
-            self.ClassHead.append(ClassHead(out_channels, anchor_num))
-
-        self.BboxHead = nn.ModuleList()
-        for _ in range(fpn_num):
-            self.BboxHead.append(BboxHead(out_channels, anchor_num))
-
-        # self.LandmarkHead = nn.ModuleList()
-        # for _ in range(fpn_num):
-        # self.LandmarkHead.append(LandmarkHead(out_channels, anchor_num))
-
-    def forward(self, inputs):
-        out = self.body(inputs)
-        fpn = self.fpn(out)
-        ssh = [self.ssh1(fpn[0]), self.ssh2(fpn[1]), self.ssh3(fpn[2])]
-
-        bbox_regressions = [self.BboxHead[i](feat) for i, feat in enumerate(ssh)]
-        bbox_regressions = torch.cat(bbox_regressions, dim=1)
-
-        classifications = [self.ClassHead[i](feat) for i, feat in enumerate(ssh)]
-        classifications = torch.cat(classifications, dim=1)
-        if not self.training:
-            classifications = F.softmax(classifications, dim=-1)
-
-        # ldm_regressions = [self.LandmarkHead[i](feat) for i, feat in enumerate(ssh)]
-        # ldm_regressions = torch.cat(ldm_regressions, dim=1)
-
-        # return bbox_regressions, classifications, ldm_regressions
-        return bbox_regressions, classifications
-
-
-def retinaface(weights_path: str = None):
-    model = RetinaFace()
-
-    if weights_path is not None:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        weights = torch.load(weights_path, map_location=torch.device(device))
-        model.load_state_dict(weights)
-
-    return model
+    def forward(self, x):
+        out = self.conv1x1(x)
+        out = out.permute(0, 2, 3, 1).contiguous()
+        return out.view(out.shape[0], -1, 10)

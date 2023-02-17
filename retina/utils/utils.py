@@ -1,3 +1,12 @@
+"""Copyright (C) SquareFactory SA - All Rights Reserved.
+This source code is protected under international copyright law. All rights 
+reserved and protected by the copyright holders.
+This file is confidential and only available to authorized individuals with the
+permission of the copyright holders. If you encounter this file and do not have
+permission, please contact the copyright holders and delete this file.
+"""
+
+from copy import deepcopy
 from itertools import product
 from math import ceil
 
@@ -13,11 +22,7 @@ def get_prior_box(
     steps=[8, 16, 32],
     clip=False,
 ):
-    """Compute prior box.
-
-    <TODO> vectorize to increase speed
-    """
-
+    """Compute prior box."""
     feature_maps = [[ceil(height / step), ceil(width / step)] for step in steps]
 
     anchors = []
@@ -40,9 +45,7 @@ def get_prior_box(
 
 def decode_boxes(boxes, priors, variances):
     """Decode locations from predictions using priors.
-
     To undo the encoding we did for offset regression at train time.
-
     Args:
         boxes (tensor): location predictions for loc layers,
             Shape: [num_priors,4]
@@ -71,13 +74,13 @@ def decode_boxes(boxes, priors, variances):
 # To undo the encoding we did for offset regression at train time.
 
 # Args:
-# landmarks (tensor): landm predictions for boxes layers,
-# Shape: [num_priors,10]
-# priors (tensor): Prior boxes in center-offset form.
-# Shape: [num_priors,4].
-# variances: (list[float]) Variances of priorboxes
+#     landmarks (tensor): landm predictions for boxes layers,
+#         Shape: [num_priors,10]
+#     priors (tensor): Prior boxes in center-offset form.
+#         Shape: [num_priors,4].
+#     variances: (list[float]) Variances of priorboxes
 # Return:
-# decoded landm predictions
+#     decoded landm predictions
 # """
 # return torch.cat(
 # (
@@ -93,10 +96,8 @@ def decode_boxes(boxes, priors, variances):
 
 def pixelize(img, blocks=6):
     """Pixelize an imagee.
-
     taken from:
         pyimagesearch.com/2020/04/06/blur-and-anonymize-faces-with-opencv-and-python
-
     Args:
         img (np.array): image to pixellize
         blocks: number of different blocks
@@ -120,3 +121,19 @@ def pixelize(img, blocks=6):
             (B, G, R) = [int(x) for x in cv2.mean(roi)[:3]]
             cv2.rectangle(img, (x_start, y_start), (x_end, y_end), (B, G, R), -1)
     return img
+
+
+def clip_all_boxes(boxes, img_dim, in_place=False):
+    if not in_place:
+        boxes = deepcopy(boxes).cpu().numpy()
+
+    h, w = img_dim
+    boxes[np.where(boxes[:, 0] < 0), 0] = 0
+    boxes[np.where(boxes[:, 1] < 0), 1] = 0
+    boxes[np.where(boxes[:, 2] > h - 1), 2] = h - 1
+    boxes[np.where(boxes[:, 3] > w - 1), 3] = w - 1
+    x_max_smallerthan_min = np.where(boxes[:, 0] > boxes[:, 2] - 1)
+    y_max_smallerthan_min = np.where(boxes[:, 1] > boxes[:, 3] - 1)
+    boxes[x_max_smallerthan_min, 0] = boxes[x_max_smallerthan_min, 2] - 1
+    boxes[y_max_smallerthan_min, 1] = boxes[y_max_smallerthan_min, 3] - 1
+    return torch.tensor(boxes)

@@ -1,9 +1,10 @@
 import argparse
 import copy
+import logging
 import os
 import time
-from typing import List
 import warnings
+from typing import List
 
 import albumentations as A
 import cv2
@@ -12,8 +13,13 @@ import numpy as np
 import torch
 import torchvision
 
-from retinaface import retinaface
-from utils import decode_boxes, get_prior_box, pixelize
+# If you did not set up the package with "pip install -e .", use paths instead:
+from retina.models.custom_retinaface import retinaface
+from retina.utils.utils import decode_boxes, get_prior_box, pixelize
+
+# imports with package set up
+# from retina import retinaface
+# from retina import decode_boxes, get_prior_box, pixelize
 
 
 warnings.simplefilter("ignore")
@@ -25,17 +31,21 @@ class FacePixelizer:
         input_size: int = 512,
         score_threshold: float = 0.5,
         nms_threshold: float = 0.5,
-        state_dict: str = "/opt/face_pixelizer/retinaface_mobilenet_0.25.pth",
-        device = "cuda"
+        state_dict_path: str = "/opt/face_pixelizer/retinaface_mobilenet_0.25.pth",
+        use_landmarks=False,
+        device="cuda",
     ):
         self.device = device if torch.cuda.is_available() else "cpu"
         self.score_threshold = score_threshold
         self.nms_threshold = nms_threshold
         self.input_size = input_size
+        self.use_landmarks = use_landmarks
 
         height, width = input_size, input_size
 
-        self.model = retinaface(state_dict)
+        self.model = retinaface(
+            {"weights_path": state_dict_path}, use_landmarks=use_landmarks
+        )
         self.model.eval()
         dump_inputs = torch.randn(1, 3, height, width)
         self.model = torch.jit.trace(self.model, dump_inputs)
@@ -59,11 +69,10 @@ class FacePixelizer:
         print(f"Face pixelizer setup! (on {self.device})")
 
     def __call__(self, imgs: List[np.ndarray]) -> List[np.ndarray]:
-        # Be sure we not modify inputs (deepcopy is necessary, shallow copy keeps reference to real inputs)
+        # Be sure to not modify input imgs
         imgs = copy.deepcopy(imgs)
 
         # transforms imgs to tensors
-
         tensors = []
         for img in imgs:
             img = img.astype(np.float32) - (104, 117, 123)
@@ -73,12 +82,13 @@ class FacePixelizer:
         tensors = torch.cat(tensors).type(torch.FloatTensor).to(self.device)
 
         # Inferences
-
         with torch.no_grad():
-            boxes, scores = self.model(tensors)
+            if self.use_landmarks:
+                boxes, scores, landmarks = self.model(tensors)
+            else:
+                boxes, scores = self.model(tensors)
 
         # Analyze outputs
-
         variances = [0.1, 0.2]
         boxes = decode_boxes(boxes, self.priors, variances)
         boxes = boxes * self.boxes_scale
@@ -98,15 +108,17 @@ class FacePixelizer:
             scores_per_img = scores_per_img[keep]
             boxes_per_img = boxes_per_img[keep]
 
-            # Deaugmente results
+            # De-augment results
             original_shape = img.shape[:2]
             scale = self.input_size / max(original_shape)
             padding = int((self.input_size - min(original_shape) * scale) / 2)
             for box in boxes_per_img:
+
                 # Remove padding
                 start_coord = 0 if np.argmax(original_shape) == 0 else 1
                 box[start_coord] -= padding
                 box[start_coord + 2] -= padding
+
                 # Remove scale
                 box = box / scale
                 box = box.type(torch.int)
@@ -123,10 +135,29 @@ class FacePixelizer:
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--image_path", type=str)
+    parser.add_argument("--image-path", type=str)
     parser.add_argument("--device", type=str, default="cuda")
-    args = parser.parse_args()
+    parser.add_argument(
+        "-w",
+        "--weights-path",
+        type=str,
+        help="Path to the networks weights.",
+        default="weights/retinaface_mobilenet_0.25.pth",
+    )
+    parser.add_argument(
+        "-noldm",
+        "--no-landmarks",
+        help="Set use of landmarks to false.",
+        action="store_false",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        help="Prints image shape during inference.",
+        action="store_true",
+    )
 
+    args = parser.parse_args()
     if not os.path.isfile(args.image_path):
         raise FileNotFoundError(f"{args.image_path} do not exist")
 
@@ -135,22 +166,24 @@ if __name__ == "__main__":
         raise ValueError(f"{args.image_path} is invalid")
     input_shape = img.shape
 
-    # Setup model
+    if args.verbose:
+        logging.basicConfig(level=logging.INFO)
 
+    # Setup model
     face_pixelizer = FacePixelizer(
         input_size=512,
-        state_dict="retinaface_mobilenet_0.25.pth",
-        device=args.device
+        state_dict_path=args.weights_path,
+        device=args.device,
+        use_landmarks=args.no_landmarks,
     )
 
     # Inference
-
     start = time.time()
     pred = face_pixelizer([img])[0]
-    print(f"inference done in {time.time() - start:0.3f} secs. {input_shape}")
+    print(f"inference done in {time.time() - start:0.3f} secs.\n")
+    logging.info(f"image shape: {input_shape}")
 
     # Plot images
-
     f, axes = plt.subplots(2, 1)
     for axe, im, title in zip(axes, [img, pred], ["original", "prediction"]):
         axe.imshow(im[..., ::-1])

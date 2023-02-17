@@ -1,0 +1,21 @@
+# These versions are pre-installed on the nvidia image, we want to avoid reinstalling
+torch==1.11.0a0+17540c5
+torchvision==0.12.0a0
+torchtext==0.12.0a0
+
+# if you want to set up locally un-comment following 3 lines and remove previous lines:
+# torch==1.11.0
+# torchvision==0.12.0
+# torchtext==0.12.0
+
+
+opencv-python-headless==4.5.3.56
+albumentations==1.0.0
+pytorch_lightning==1.7.1
+pytorch_toolbelt==0.5.1
+torchmetrics==0.9.2
+onnx==1.10.1
+iglovikov-helper-functions==0.0.53
+
+
+

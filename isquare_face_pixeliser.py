@@ -1,7 +1,6 @@
 from archipel.workers.worker import ImagesToImagesWorker
 
-from face_pixelizer import FacePixelizer
-
+from deploy.face_pixelizer import FacePixelizer
 
 __task_class_name__ = "ArchipelFacePixelizer"
 
@@ -18,7 +17,7 @@ class ArchipelFacePixelizer(ImagesToImagesWorker):
             "--score-threshold",
             default=0.4,
             type=float,
-            help="Discords all results with confidence score < score-threshold",
+            help="Discards all results with confidence score < score-threshold",
         )
         parent_parser.add_argument(
             "--nms-threshold",
@@ -32,13 +31,19 @@ class ArchipelFacePixelizer(ImagesToImagesWorker):
             type=str,
             help="Path to pretrained weights",
         )
+        parent_parser.add_argument(
+            "--with-landmarks",
+            action="store_true",
+            help="Whether or not the provided weights include a LandmarksHead.",
+        )
 
     def setup_model(self):
         self.model = FacePixelizer(
-            self.args.input_size,
-            self.args.score_threshold,
-            self.args.nms_threshold,
-            self.args.state_dict,
+            input_size=self.args.input_size,
+            score_threshold=self.args.score_threshold,
+            nms_threshold=self.args.nms_threshold,
+            state_dict_path=self.args.state_dict,
+            use_landmarks=self.args.with_landmarks,
         )
 
     def forward(self, imgs):
