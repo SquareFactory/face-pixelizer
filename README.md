@@ -18,13 +18,17 @@ Simply comment out the first 3 requirements and  un-comment the commented ones, 
 
 Then, the package can be installed as follows : 
 
-```
+## Start locally
+Before using an MLOPS platform to monitor and scale your trainings and deployments, you can test your models locally. Since you may not have sufficient coomputing power to train your model using your machine, we will only test our deployment script locally. To do this, you need to first configure your environment and install the relevant python packages.
+
+```bash
 conda create -n face-pixelizer python=3.8
 conda activate face-pixelizer
 pip install retinaface_pytorch==0.0.8 --no-deps
 pip install -e .
 pip install opencv-python==4.5.3.36
 ```
+
 retinaface-pytorch needs to be installed separately as its requirements are out-dated, but this does not cause any compatibility issue.
 
 ## Download the data
@@ -46,13 +50,14 @@ additionnal arguments : \
 After this, you're all set to test your model locally. If you have a cuda-compatible GPU, it will be used, but the script will also run in reasonable time on your CPU. We provide an picture taken at the street parade in Zurich as example image, but you can use any private image with this script. However, to see an effect, the picture should contain at least one face.
 Let's try it out
 
-## Example
 
-```
+```bash
 python face_pixelizer.py --image_path imgs/example_01.jpg
 ```
+If you used our provided image, you should see the following output:
 
 ![example](imgs/plot.jpg)
+
 
 ## Aknowledgements
 Some of the code and the utilities used in this repository are taken from the [retinaface-pytorch](https://github.com/ternaus/retinaface) package, sometimes adapted. \
