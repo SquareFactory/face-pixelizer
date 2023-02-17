@@ -20,8 +20,7 @@ def download_data(
 ):
     # create a data dir if not present
     path_to_data = Path("data/")
-    if not path_to_data.exists():
-        path_to_data.mkdir(parents=True, exist_ok=True)
+    path_to_data.mkdir(parents=True, exist_ok=True)
 
     # download training set
     if train_set:
@@ -60,14 +59,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-ts",
-        "--train_set",
+        "--train-set",
         action="store_true",
         help="Download the training set",
         default=False,
     )
     parser.add_argument(
         "-vs",
-        "--val_set",
+        "--val-set",
         action="store_true",
         help="Download the validation set",
         default=False,

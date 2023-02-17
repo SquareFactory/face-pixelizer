@@ -24,6 +24,10 @@ variance:
 weight_decay: 0.0001
 backbone_weights_path: 'weights/MobileNetv1.pth'
 # weights_path: 'weights/retinaface_modif_mobilenet_0.25.pth' # remove for training
+TRAIN_IMAGE_PATH: "data/WIDER_train/WIDER_train/images"
+VAL_IMAGE_PATH: "data/WIDER_val/WIDER_val/images"
+TRAIN_LABEL_PATH: "data/WIDER_labels/annotations/train/label.json"
+VAL_LABEL_PATH: "data/WIDER_labels/annotations/val/label.json"
 
 checkpoint_callback:
   monitor: val_loss

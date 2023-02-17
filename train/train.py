@@ -6,6 +6,7 @@ permission of the copyright holders. If you encounter this file and do not have
 permission, please contact the copyright holders and delete this file.
 """
 import argparse
+import logging
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -16,8 +17,6 @@ import torch
 import torch.nn.functional as F
 import yaml
 from albumentations.core.serialization import from_dict
-
-# from pip pkg : retinaface-pytorch
 from retinaface.box_utils import decode
 from retinaface.data_augment import Preproc
 from retinaface.dataset import FaceDetectionDataset, detection_collate
@@ -27,14 +26,7 @@ from torch.utils.data import DataLoader
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 from torchvision.ops import nms
 
-# from our custom-made pkg : retina
 from retina import clip_all_boxes, retinaface
-
-TRAIN_IMAGE_PATH = Path("data/WIDER_train/WIDER_train/images")
-VAL_IMAGE_PATH = Path("data/WIDER_val/WIDER_val/images")
-
-TRAIN_LABEL_PATH = Path("data/WIDER_labels/annotations/train/label.json")
-VAL_LABEL_PATH = Path("data/WIDER_labels/annotations/val/label.json")
 
 
 class RetinaFaceLitMod(pl.LightningModule):
@@ -83,7 +75,7 @@ class RetinaFaceLitMod(pl.LightningModule):
             "mAP_epoch_interval"
         ]  # mAP takes a lot of time to compute, so better to not dot it everytime
 
-    def forward(self, batch: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore
+    def forward(self, batch: torch.Tensor) -> Tuple:
         return self.model(batch)
 
     def configure_optimizers(self):
@@ -100,9 +92,11 @@ class RetinaFaceLitMod(pl.LightningModule):
             T_mult=self.config["scheduler"]["T_mult"],
             optimizer=optimizer,
         )
-        return [optimizer], [scheduler]  # type: ignore
+        return [optimizer], [scheduler]
 
-    def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int):  # type: ignore
+    def training_step(
+        self, batch: Dict[str, torch.Tensor], batch_idx: int
+    ) -> torch.Tensor:
         images = batch["image"]
         targets = batch["annotation"]
         out = self.forward(images)
@@ -112,7 +106,7 @@ class RetinaFaceLitMod(pl.LightningModule):
             # in loss comput.
             fake_ldm = self.fake_ldm_input[
                 : len(out[0]), :, :
-            ]  # in case last batch is smaller
+            ]  # in case last batch is smaller, we trim ldm to size of batch
             out = (*out, fake_ldm.to(images.device))
             for t in targets:
                 t[:, 14] = -1
@@ -135,7 +129,9 @@ class RetinaFaceLitMod(pl.LightningModule):
         )
         return total_loss
 
-    def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int):  # type: ignore
+    def validation_step(
+        self, batch: Dict[str, torch.Tensor], batch_idx: int
+    ) -> torch.Tensor:
         images = batch["image"]
         targets = batch["annotation"]
 
@@ -149,7 +145,7 @@ class RetinaFaceLitMod(pl.LightningModule):
             ]  # in case last batch is smaller
             out = (*out, fake_ldm.to(images.device))
 
-        loss_localization, loss_classification, itit = self.loss(out, targets)
+        loss_localization, loss_classification, _ = self.loss(out, targets)
 
         total_loss = (
             self.loss_factors["loc"] * loss_localization
@@ -215,7 +211,7 @@ class RetinaFaceLitMod(pl.LightningModule):
             self.mAP.update(predictions, gtruth)
         return total_loss.cpu().detach()
 
-    def validation_epoch_end(self, outputs: List) -> None:
+    def validation_epoch_end(self, outputs: List):
         mean_val_loss = np.mean(outputs)
         self.log(
             "val_loss",
@@ -235,7 +231,7 @@ class RetinaFaceLitMod(pl.LightningModule):
             all_map_value["computation_time"] = end - start
             map_value = all_map_value["map"]
 
-            print(f"Last mAP calculated in {end-start:.2f} seconds")
+            logging.info(f"Last mAP calculated in {end-start:.2f} seconds")
 
             self.log(
                 "map",
@@ -248,43 +244,31 @@ class RetinaFaceLitMod(pl.LightningModule):
 
 
 class FaceDataModule(pl.LightningDataModule):
-    """doc here"""
+    """Pytorch-lightning DataModule for training retinaface on WIDER."""
 
     def __init__(
         self,
         config,
-        train_data_dir=TRAIN_IMAGE_PATH,
-        val_data_dir=VAL_IMAGE_PATH,
-        train_labels_path=TRAIN_LABEL_PATH,
-        val_labels_path=VAL_LABEL_PATH,
     ):
-
         super().__init__()
-        self.train_data_dir = train_data_dir
-        self.val_data_dir = val_data_dir
-
-        self.train_labels_path = train_labels_path
-        self.val_labels_path = val_labels_path
+        self.train_data_dir = Path(config["TRAIN_IMAGE_PATH"])
+        self.val_data_dir = Path(config["VAL_IMAGE_PATH"])
+        self.train_labels_path = Path(config["TRAIN_LABEL_PATH"])
+        self.val_labels_path = Path(config["VAL_LABEL_PATH"])
 
         self.batch_size = config["batch_size"]
         self.num_workers = config["num_workers"]
         self.image_size = tuple(config["image_size"])
         self.aug_cfg = config["augmentations"]
 
-    def setup(self, stage=None) -> None:  # type: ignore
-        # check if dataset exists and download it. Not anymore: handled by docker build
-        # train_ok = TRAIN_IMAGE_PATH.exists()
-        # val_ok = VAL_IMAGE_PATH.exists()
-        # lbl_ok = TRAIN_LABEL_PATH.exists() and VAL_LABEL_PATH.exists()
-
-        # download_data(not train_ok, not val_ok, labels=not lbl_ok, unzip=True)
+    def setup(self, stage=None):
         self.preproc = Preproc(img_dim=self.image_size[0])
 
     def train_dataloader(self):
         result = DataLoader(
             FaceDetectionDataset(
-                label_path=TRAIN_LABEL_PATH,
-                image_path=TRAIN_IMAGE_PATH,
+                label_path=self.train_labels_path,
+                image_path=self.train_data_dir,
                 transform=from_dict(self.aug_cfg["train_aug"]),
                 preproc=self.preproc,
                 rotate90=False,
@@ -303,8 +287,8 @@ class FaceDataModule(pl.LightningDataModule):
     def val_dataloader(self):
         result = DataLoader(
             FaceDetectionDataset(
-                label_path=VAL_LABEL_PATH,
-                image_path=VAL_IMAGE_PATH,
+                label_path=self.val_labels_path,
+                image_path=self.val_data_dir,
                 transform=from_dict(self.aug_cfg["val_aug"]),
                 preproc=self.preproc,
                 rotate90=False,
@@ -319,28 +303,8 @@ class FaceDataModule(pl.LightningDataModule):
         )
         return result
 
-    # Not implemented yet
-    # def test_dataloader(self):
-    #     result = DataLoader(
-    #         FaceDetectionDataset(
-    #             label_path=TEST_LABEL_PATH,
-    #             image_path=TEST_IMAGE_PATH,
-    #             transform=from_dict(self.aug_cfg["test_aug"]),
-    #             preproc=self.preproc,
-    #             rotate90=False,
-    #         ),
-    #         batch_size=self.batch_size,
-    #         num_workers=self.num_workers,
-    #         shuffle=False,
-    #         pin_memory=True,
-    #         drop_last=True,
-    #         collate_fn=detection_collate,
-    #         persistent_workers=True,
-    #     )
-    #     return result
 
-
-def main() -> None:
+def main():
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
 
@@ -349,17 +313,20 @@ def main() -> None:
     w_help = "path to the networks weights. Generally not used for training"
 
     # args
-    arg("-w", "--weights_path", type=str, help=w_help, default=None)
+    arg("-w", "--weights-path", type=str, help=w_help, default=None)
     arg("-e", "--epochs", type=int, help="the number of epochs", default=10)
     arg("-c", "--config", type=str, help="path to config yml", default=cfg_p)
     arg("-noldm", "--no-landmarks", action="store_false")
-
+    arg("-v", "--verbose", action="store_true")
     args = parser.parse_args()
+    if args.verbose:
+        logging.basicConfig(level=logging.INFO)
 
     cfg = Path(args.config)
     with cfg.open() as f:
         config = yaml.load(f, Loader=yaml.SafeLoader)
-
+    assert "TRAIN_LABEL_PATH" in config
+    assert "VAL_LABEL_PATH" in config
     # add to config the path given in args
     config["weights_path"] = args.weights_path
 

@@ -1,5 +1,6 @@
 import argparse
 import copy
+import logging
 import os
 import time
 import warnings
@@ -134,11 +135,11 @@ class FacePixelizer:
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--image_path", type=str)
+    parser.add_argument("--image-path", type=str)
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument(
         "-w",
-        "--weights_path",
+        "--weights-path",
         type=str,
         help="Path to the networks weights.",
         default="weights/retinaface_mobilenet_0.25.pth",
@@ -149,9 +150,14 @@ if __name__ == "__main__":
         help="Set use of landmarks to false.",
         action="store_false",
     )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        help="Prints image shape during inference.",
+        action="store_true",
+    )
 
     args = parser.parse_args()
-
     if not os.path.isfile(args.image_path):
         raise FileNotFoundError(f"{args.image_path} do not exist")
 
@@ -159,6 +165,9 @@ if __name__ == "__main__":
     if img is None:
         raise ValueError(f"{args.image_path} is invalid")
     input_shape = img.shape
+
+    if args.verbose:
+        logging.basicConfig(level=logging.INFO)
 
     # Setup model
     face_pixelizer = FacePixelizer(
@@ -171,7 +180,8 @@ if __name__ == "__main__":
     # Inference
     start = time.time()
     pred = face_pixelizer([img])[0]
-    print(f"inference done in {time.time() - start:0.3f} secs.")
+    print(f"inference done in {time.time() - start:0.3f} secs.\n")
+    logging.info(f"image shape: {input_shape}")
 
     # Plot images
     f, axes = plt.subplots(2, 1)
