@@ -1,5 +1,5 @@
 # These versions are pre-installed on the nvidia image, we want to avoid reinstalling
-torch==1.11.0a0+17540c5
+torch==1.13.1
 torchvision==0.12.0a0
 torchtext==0.12.0a0
 
