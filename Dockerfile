@@ -1,4 +1,4 @@
-FROM alpineintuition/archipel-base-cpu:latest
+FROM squarefactory/archipel-base-cpu:latest
 
 COPY deploy/deploy_requirements.txt requirements.txt
 RUN pip install -r requirements.txt && \
